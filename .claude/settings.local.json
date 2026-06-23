@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx *)",
+      "Bash(gh auth *)",
+      "Bash(git --version)",
+      "Bash(git ls-remote *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(mkdir -p /mnt/c/Users/PurnaChandraRao/Documents/MindFlow/docs/agents)",
+      "Bash(cp issue-tracker-github.md /mnt/c/Users/PurnaChandraRao/Documents/MindFlow/docs/agents/issue-tracker.md)",
+      "Bash(cp triage-labels.md      /mnt/c/Users/PurnaChandraRao/Documents/MindFlow/docs/agents/triage-labels.md)",
+      "Bash(cp domain.md             /mnt/c/Users/PurnaChandraRao/Documents/MindFlow/docs/agents/domain.md)"
+    ]
+  }
+}

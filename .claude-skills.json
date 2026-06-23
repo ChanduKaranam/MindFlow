@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "installed": {
+    "senior-fullstack": {
+      "version": "1.0.0",
+      "domain": "engineering",
+      "target": "claude",
+      "path": ".claude/skills/senior-fullstack",
+      "files": [
+        "SKILL.md",
+        "references/architecture_patterns.md",
+        "references/development_workflows.md",
+        "references/tech_stack_guide.md",
+        "scripts/code_quality_analyzer.py",
+        "scripts/project_scaffolder.py"
+      ],
+      "installed_at": "2026-06-23T15:57:21.133Z"
+    }
+  }
+}
