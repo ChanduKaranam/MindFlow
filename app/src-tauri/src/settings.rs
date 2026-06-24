@@ -284,7 +284,7 @@ pub enum WhisperAcceleratorSetting {
 
 impl Default for WhisperAcceleratorSetting {
     fn default() -> Self {
-        WhisperAcceleratorSetting::Auto
+        WhisperAcceleratorSetting::Cpu
     }
 }
 
@@ -301,7 +301,7 @@ pub enum OrtAcceleratorSetting {
 
 impl Default for OrtAcceleratorSetting {
     fn default() -> Self {
-        OrtAcceleratorSetting::Auto
+        OrtAcceleratorSetting::Cpu
     }
 }
 
@@ -985,5 +985,21 @@ mod tests {
         let out = format!("{:?}", map);
         assert!(!out.contains("secret"));
         assert!(out.contains("[REDACTED]"));
+    }
+}
+
+#[cfg(test)]
+mod m2_cpu_defaults {
+    use super::*;
+    #[test]
+    fn accelerator_defaults_are_cpu() {
+        assert_eq!(WhisperAcceleratorSetting::default(), WhisperAcceleratorSetting::Cpu);
+        assert_eq!(OrtAcceleratorSetting::default(), OrtAcceleratorSetting::Cpu);
+    }
+    #[test]
+    fn default_settings_force_cpu() {
+        let s = get_default_settings();
+        assert_eq!(s.whisper_accelerator, WhisperAcceleratorSetting::Cpu);
+        assert_eq!(s.ort_accelerator, OrtAcceleratorSetting::Cpu);
     }
 }

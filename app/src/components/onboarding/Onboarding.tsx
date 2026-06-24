@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import type { ModelInfo } from "@/bindings";
 import type { ModelCardStatus } from "./ModelCard";
 import ModelCard from "./ModelCard";
@@ -24,8 +25,17 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
     downloadStats,
   } = useModelStore();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [recommendedTier, setRecommendedTier] = useState<string | null>(null);
 
   const isDownloading = selectedModelId !== null;
+
+  useEffect(() => {
+    invoke<string>("recommended_tier_cmd")
+      .then((tier) => setRecommendedTier(tier))
+      .catch(() => {
+        // Non-fatal: tier badge simply won't show
+      });
+  }, []);
 
   // Watch for the selected model to finish downloading + verifying + extracting
   useEffect(() => {
@@ -102,19 +112,30 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
           {models
             .filter((m: ModelInfo) => !m.is_downloaded)
             .filter((model: ModelInfo) => model.is_recommended)
-            .map((model: ModelInfo) => (
-              <ModelCard
-                key={model.id}
-                model={model}
-                variant="featured"
-                status={getModelStatus(model.id)}
-                disabled={isDownloading}
-                onSelect={handleDownloadModel}
-                onDownload={handleDownloadModel}
-                downloadProgress={getModelDownloadProgress(model.id)}
-                downloadSpeed={getModelDownloadSpeed(model.id)}
-              />
-            ))}
+            .map((model: ModelInfo) => {
+              const isRecommendedForCpu =
+                recommendedTier !== null &&
+                (model as { tier?: string }).tier === recommendedTier;
+              return (
+                <div key={model.id} className="relative">
+                  {isRecommendedForCpu && (
+                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                      {t("onboarding.recommendedForYourPc")}
+                    </div>
+                  )}
+                  <ModelCard
+                    model={model}
+                    variant={isRecommendedForCpu ? "featured" : "default"}
+                    status={getModelStatus(model.id)}
+                    disabled={isDownloading}
+                    onSelect={handleDownloadModel}
+                    onDownload={handleDownloadModel}
+                    downloadProgress={getModelDownloadProgress(model.id)}
+                    downloadSpeed={getModelDownloadSpeed(model.id)}
+                  />
+                </div>
+              );
+            })}
 
           {models
             .filter((m: ModelInfo) => !m.is_downloaded)
@@ -123,18 +144,30 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
               (a: ModelInfo, b: ModelInfo) =>
                 Number(a.size_mb) - Number(b.size_mb),
             )
-            .map((model: ModelInfo) => (
-              <ModelCard
-                key={model.id}
-                model={model}
-                status={getModelStatus(model.id)}
-                disabled={isDownloading}
-                onSelect={handleDownloadModel}
-                onDownload={handleDownloadModel}
-                downloadProgress={getModelDownloadProgress(model.id)}
-                downloadSpeed={getModelDownloadSpeed(model.id)}
-              />
-            ))}
+            .map((model: ModelInfo) => {
+              const isRecommendedForCpu =
+                recommendedTier !== null &&
+                (model as { tier?: string }).tier === recommendedTier;
+              return (
+                <div key={model.id} className="relative">
+                  {isRecommendedForCpu && (
+                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                      {t("onboarding.recommendedForYourPc")}
+                    </div>
+                  )}
+                  <ModelCard
+                    model={model}
+                    variant={isRecommendedForCpu ? "featured" : "default"}
+                    status={getModelStatus(model.id)}
+                    disabled={isDownloading}
+                    onSelect={handleDownloadModel}
+                    onDownload={handleDownloadModel}
+                    downloadProgress={getModelDownloadProgress(model.id)}
+                    downloadSpeed={getModelDownloadSpeed(model.id)}
+                  />
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>

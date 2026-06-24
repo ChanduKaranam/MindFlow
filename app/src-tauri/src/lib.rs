@@ -16,6 +16,7 @@ pub mod portable;
 mod settings;
 mod shortcut;
 mod signal_handle;
+mod stt_tier;
 mod transcription_coordinator;
 mod tray;
 mod tray_i18n;
@@ -331,6 +332,12 @@ fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+#[specta::specta]
+fn recommended_tier_cmd() -> Result<String, String> {
+    Ok(crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(&crate::stt_tier::detect_cpu_profile())).to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(cli_args: CliArgs) {
     // Detect portable mode before anything else
@@ -395,6 +402,7 @@ pub fn run(cli_args: CliArgs) {
             trigger_update_check,
             show_main_window_command,
             deliver_text_cmd,
+            recommended_tier_cmd,
             commands::cancel_operation,
             commands::is_portable,
             commands::get_app_dir_path,
