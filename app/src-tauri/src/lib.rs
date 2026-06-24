@@ -322,6 +322,15 @@ fn show_main_window_command(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+#[specta::specta]
+fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
+    match inject::deliver_now(&app, &text)? {
+        inject::deliver::Delivered::Pasted => Ok("pasted".into()),
+        inject::deliver::Delivered::ClipboardOnly => Ok("clipboard".into()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(cli_args: CliArgs) {
     // Detect portable mode before anything else
@@ -385,6 +394,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::handy_keys::stop_handy_keys_recording,
             trigger_update_check,
             show_main_window_command,
+            deliver_text_cmd,
             commands::cancel_operation,
             commands::is_portable,
             commands::get_app_dir_path,
