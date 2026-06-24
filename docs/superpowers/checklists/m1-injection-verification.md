@@ -21,3 +21,8 @@ For each of Windows, macOS, Linux-X11, Linux-Wayland:
 ## Gate
 M1 passes when injection delivers text (pasted or clipboard) in all three app types
 on all four session configurations, and the hotkey fires on each OS.
+
+## Zero-network gate (carried forward)
+`app/src-tauri/tests/zero_network.rs` MUST be extended in M2–M6 to drive the
+full dictation flow with networking disabled and assert zero outbound
+connections. Do not let later milestones ship without expanding it.
