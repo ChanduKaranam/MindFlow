@@ -1,5 +1,14 @@
 use crate::managers::model::ModelTier;
 
+/// Maps a ModelTier to its canonical lowercase string for the frontend.
+pub fn tier_to_str(t: ModelTier) -> &'static str {
+    match t {
+        ModelTier::Turbo => "turbo",
+        ModelTier::Balanced => "balanced",
+        ModelTier::Max => "max",
+    }
+}
+
 #[allow(dead_code)]
 pub struct CpuProfile {
     pub physical_cores: usize,
@@ -25,7 +34,6 @@ pub fn recommend_tier(p: &CpuProfile) -> ModelTier {
 
 /// Reads the real CPU core count and total RAM from the OS via sysinfo.
 /// This is a thin detector — all logic lives in `recommend_tier`.
-#[allow(dead_code)]
 pub fn detect_cpu_profile() -> CpuProfile {
     use sysinfo::{CpuRefreshKind, RefreshKind, System};
     let mut sys = System::new_with_specifics(
@@ -48,6 +56,21 @@ pub fn detect_cpu_profile() -> CpuProfile {
 mod tests {
     use super::*;
     use crate::managers::model::ModelTier;
+
+    #[test]
+    fn tier_to_str_turbo() {
+        assert_eq!(tier_to_str(ModelTier::Turbo), "turbo");
+    }
+
+    #[test]
+    fn tier_to_str_balanced() {
+        assert_eq!(tier_to_str(ModelTier::Balanced), "balanced");
+    }
+
+    #[test]
+    fn tier_to_str_max() {
+        assert_eq!(tier_to_str(ModelTier::Max), "max");
+    }
 
     #[test]
     fn weak_machine_gets_turbo() {

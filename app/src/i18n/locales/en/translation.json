@@ -20,6 +20,7 @@
   "onboarding": {
     "subtitle": "To get started, choose a transcription model",
     "recommended": "Recommended",
+    "recommendedForYourPc": "Recommended for your PC",
     "download": "Download",
     "downloading": "Downloading...",
     "customModelDescription": "Not officially supported",
