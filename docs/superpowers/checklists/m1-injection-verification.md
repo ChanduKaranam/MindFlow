@@ -4,7 +4,7 @@ For each of Windows, macOS, Linux-X11, Linux-Wayland:
 
 ## Injection
 1. `cd app && bun run tauri dev`
-2. Open the dev-inject page. Click "Deliver in 3s", then focus a text field in:
+2. In a dev build (`bun run tauri dev`), the DEV injection panel appears in the app window. Click "Deliver in 3s", then focus a text field in:
    - [ ] a browser address bar
    - [ ] a plain text editor (Notepad / TextEdit / gedit)
    - [ ] a chat app or terminal

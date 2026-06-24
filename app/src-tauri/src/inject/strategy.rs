@@ -1,4 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Os { Windows, MacOs, Linux }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +26,8 @@ pub fn detect_session() -> SessionEnv {
     let os = Os::MacOs;
     #[cfg(target_os = "linux")]
     let os = Os::Linux;
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let os = Os::Linux; // safest default: DirectPaste, non-Wayland
 
     let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok()
         || std::env::var("XDG_SESSION_TYPE").map(|v| v == "wayland").unwrap_or(false);
