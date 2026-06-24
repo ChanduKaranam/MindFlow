@@ -1,0 +1,7 @@
+MindFlow is built on the following open-source projects:
+
+- Handy (https://github.com/cjpais/Handy) — MIT License — vendored under app/
+  as the host application body. Copyright (c) cjpais. See app/LICENSE.
+
+MindFlow itself is licensed under the GNU AGPL-3.0. Upstream MIT license texts
+are retained in their original files.
