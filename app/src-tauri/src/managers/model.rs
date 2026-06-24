@@ -17,6 +17,13 @@ use std::time::{Duration, Instant};
 use tar::Archive;
 use tauri::{AppHandle, Emitter, Manager};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum ModelTier {
+    Turbo,
+    Balanced,
+    Max,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub enum EngineType {
     Whisper,
@@ -50,6 +57,7 @@ pub struct ModelInfo {
     pub supported_languages: Vec<String>, // Languages this model can transcribe
     pub supports_language_selection: bool, // Whether the user can explicitly pick a language
     pub is_custom: bool,            // Whether this is a user-provided custom model
+    pub tier: Option<ModelTier>,    // Curated tier (Turbo/Balanced/Max); None for uncategorised models
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -139,6 +147,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: whisper_languages.clone(),
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -167,6 +176,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: whisper_languages.clone(),
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -194,6 +204,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: whisper_languages.clone(),
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -221,6 +232,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: whisper_languages.clone(),
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -249,6 +261,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: whisper_languages,
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -277,6 +290,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: vec!["en".to_string()],
             supports_language_selection: false,
             is_custom: false,
+            tier: Some(ModelTier::Balanced),
         },
     );
 
@@ -314,6 +328,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: parakeet_v3_languages,
             supports_language_selection: false,
             is_custom: false,
+            tier: Some(ModelTier::Max),
         },
     );
 
@@ -341,6 +356,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: vec!["en".to_string()],
             supports_language_selection: false,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -370,6 +386,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: vec!["en".to_string()],
             supports_language_selection: false,
             is_custom: false,
+            tier: Some(ModelTier::Turbo),
         },
     );
 
@@ -399,6 +416,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: vec!["en".to_string()],
             supports_language_selection: false,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -428,6 +446,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: vec!["en".to_string()],
             supports_language_selection: false,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -463,6 +482,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: sense_voice_languages,
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -493,6 +513,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: gigaam_languages,
             supports_language_selection: false,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -527,6 +548,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: canary_flash_languages,
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -564,6 +586,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: canary_1b_languages,
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -599,6 +622,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supported_languages: cohere_languages,
             supports_language_selection: true,
             is_custom: false,
+            tier: None,
         },
     );
 
@@ -935,6 +959,7 @@ impl ModelManager {
                     supported_languages: vec![],
                     supports_language_selection: true,
                     is_custom: true,
+                    tier: None,
                 },
             );
         }
@@ -1481,6 +1506,18 @@ impl ModelManager {
 }
 
 #[cfg(test)]
+mod m2_tiers {
+    use super::*;
+    #[test]
+    fn curated_models_have_expected_tiers() {
+        let c = build_catalog();
+        assert_eq!(c["moonshine-tiny-streaming-en"].tier, Some(ModelTier::Turbo));
+        assert_eq!(c["parakeet-tdt-0.6b-v2"].tier, Some(ModelTier::Balanced));
+        assert_eq!(c["parakeet-tdt-0.6b-v3"].tier, Some(ModelTier::Max));
+    }
+}
+
+#[cfg(test)]
 mod m2_default_model {
     use super::*;
     #[test]
@@ -1539,6 +1576,7 @@ mod tests {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: true,
                 is_custom: false,
+                tier: None,
             },
         );
 
