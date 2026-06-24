@@ -66,6 +66,7 @@ natural = "0.5.0"
 regex = "1"
 chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
+arboard = "3"
 tar = "0.4.44"
 flate2 = "1.0"
 sha2 = "0.10"
