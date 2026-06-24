@@ -86,10 +86,9 @@ impl<'a> Drop for DownloadCleanup<'a> {
 }
 
 pub struct ModelManager {
-    /// Wrapped in `ManuallyDrop` so that test helpers (`test_catalog()`) can
-    /// construct an instance without a real AppHandle without triggering UB on
-    /// drop.  All production code accesses this field via auto-deref.
-    app_handle: std::mem::ManuallyDrop<AppHandle>,
+    /// `None` only in test helpers (`test_catalog()`); always `Some` in production.
+    /// Use `self.handle()` to obtain a reference in production code.
+    app_handle: Option<AppHandle>,
     models_dir: PathBuf,
     available_models: Mutex<HashMap<String, ModelInfo>>,
     cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
@@ -627,7 +626,7 @@ impl ModelManager {
         }
 
         let manager = Self {
-            app_handle: std::mem::ManuallyDrop::new(app_handle.clone()),
+            app_handle: Some(app_handle.clone()),
             models_dir,
             available_models: Mutex::new(available_models),
             cancel_flags: Arc::new(Mutex::new(HashMap::new())),
@@ -667,24 +666,11 @@ impl ModelManager {
 
     /// Constructs a `ModelManager` from the static catalog only, for use in tests.
     /// The returned instance must only access `available_models` (via `models()`);
-    /// calling any method that uses `app_handle` is undefined behaviour.
-    ///
-    /// # Safety
-    /// `app_handle` is stored in `ManuallyDrop` so its Drop impl never runs.
-    /// `test_catalog()` callers must only call `models()`, which never reads `app_handle`.
+    /// calling any method that uses `app_handle` will panic.
     #[cfg(test)]
     pub fn test_catalog() -> Self {
-        // SAFETY: `ManuallyDrop` prevents Drop from running on the uninitialised
-        // `AppHandle`, so the invalid bit-pattern is never dereferenced.
-        // The test contract: only `models()` is called on the returned value.
-        #[allow(invalid_value)]
-        let app_handle = unsafe {
-            std::mem::ManuallyDrop::new(
-                std::mem::MaybeUninit::<AppHandle>::uninit().assume_init(),
-            )
-        };
         Self {
-            app_handle,
+            app_handle: None,
             models_dir: PathBuf::new(),
             available_models: Mutex::new(build_catalog()),
             cancel_flags: Arc::new(Mutex::new(HashMap::new())),
@@ -692,12 +678,18 @@ impl ModelManager {
         }
     }
 
+    /// Returns a reference to the `AppHandle`. Panics if called from a test-only
+    /// instance constructed via `test_catalog()`.
+    fn handle(&self) -> &AppHandle {
+        self.app_handle.as_ref().expect("app_handle is None — handle() must not be called from test_catalog() instances")
+    }
+
     fn migrate_bundled_models(&self) -> Result<()> {
         // Check for bundled models and copy them to user directory
         let bundled_models = ["ggml-small.bin"]; // Add other bundled models here if any
 
         for filename in &bundled_models {
-            let bundled_path = self.app_handle.path().resolve(
+            let bundled_path = self.handle().path().resolve(
                 &format!("resources/models/{}", filename),
                 tauri::path::BaseDirectory::Resource,
             );
@@ -733,7 +725,7 @@ impl ModelManager {
         info!("Migrating GigaAM from single-file to directory format");
 
         let vocab_path = self
-            .app_handle
+            .handle()
             .path()
             .resolve(
                 "resources/models/gigaam_vocab.txt",
@@ -816,7 +808,7 @@ impl ModelManager {
     }
 
     fn auto_select_model_if_needed(&self) -> Result<()> {
-        let mut settings = get_settings(&self.app_handle);
+        let mut settings = get_settings(self.handle());
 
         // Clear stale selection: selected model is set but doesn't exist
         // in available_models (e.g. deleted custom model file)
@@ -831,7 +823,7 @@ impl ModelManager {
                     settings.selected_model
                 );
                 settings.selected_model = String::new();
-                write_settings(&self.app_handle, settings.clone());
+                write_settings(self.handle(), settings.clone());
             }
         }
 
@@ -848,7 +840,7 @@ impl ModelManager {
                 // Update settings with the selected model
                 let mut updated_settings = settings;
                 updated_settings.selected_model = available_model.id.clone();
-                write_settings(&self.app_handle, updated_settings);
+                write_settings(self.handle(), updated_settings);
 
                 info!("Successfully auto-selected model: {}", available_model.id);
             }
@@ -1159,7 +1151,7 @@ impl ModelManager {
             },
         };
         let _ = self
-            .app_handle
+            .handle()
             .emit("model-download-progress", &initial_progress);
 
         // Throttle progress events to max 10/sec (100ms intervals)
@@ -1196,7 +1188,7 @@ impl ModelManager {
                     total: total_size,
                     percentage,
                 };
-                let _ = self.app_handle.emit("model-download-progress", &progress);
+                let _ = self.handle().emit("model-download-progress", &progress);
                 last_emit = Instant::now();
             }
         }
@@ -1213,7 +1205,7 @@ impl ModelManager {
             },
         };
         let _ = self
-            .app_handle
+            .handle()
             .emit("model-download-progress", &final_progress);
 
         file.flush()?;
@@ -1236,7 +1228,7 @@ impl ModelManager {
         // Verify SHA256 checksum. Runs in a blocking thread so the async executor is not
         // stalled while hashing large model files (up to 1.6 GB). On failure the partial
         // is deleted inside verify_sha256 so the next attempt always starts fresh.
-        let _ = self.app_handle.emit("model-verification-started", model_id);
+        let _ = self.handle().emit("model-verification-started", model_id);
         info!("Verifying SHA256 for model {}...", model_id);
         let verify_path = partial_path.clone();
         let verify_expected = model_info.sha256.clone();
@@ -1248,7 +1240,7 @@ impl ModelManager {
         .map_err(|e| anyhow::anyhow!("SHA256 task panicked: {}", e))?;
         verify_result?;
         let _ = self
-            .app_handle
+            .handle()
             .emit("model-verification-completed", model_id);
 
         // Handle directory-based models (extract tar.gz) vs file-based models
@@ -1260,7 +1252,7 @@ impl ModelManager {
             }
 
             // Emit extraction started event
-            let _ = self.app_handle.emit("model-extraction-started", model_id);
+            let _ = self.handle().emit("model-extraction-started", model_id);
             info!("Extracting archive for directory-based model: {}", model_id);
 
             // Use a temporary extraction directory to ensure atomic operations
@@ -1295,7 +1287,7 @@ impl ModelManager {
                     let mut extracting = self.extracting_models.lock().unwrap();
                     extracting.remove(model_id);
                 }
-                let _ = self.app_handle.emit(
+                let _ = self.handle().emit(
                     "model-extraction-failed",
                     &serde_json::json!({
                         "model_id": model_id,
@@ -1335,7 +1327,7 @@ impl ModelManager {
                 extracting.remove(model_id);
             }
             // Emit extraction completed event
-            let _ = self.app_handle.emit("model-extraction-completed", model_id);
+            let _ = self.handle().emit("model-extraction-completed", model_id);
 
             // Remove the downloaded tar.gz file
             let _ = fs::remove_file(&partial_path);
@@ -1358,7 +1350,7 @@ impl ModelManager {
         self.cancel_flags.lock().unwrap().remove(model_id);
 
         // Emit completion event
-        let _ = self.app_handle.emit("model-download-complete", model_id);
+        let _ = self.handle().emit("model-download-complete", model_id);
 
         info!(
             "Successfully downloaded model {} to {:?}",
@@ -1433,7 +1425,7 @@ impl ModelManager {
         }
 
         // Emit event to notify UI
-        let _ = self.app_handle.emit("model-deleted", model_id);
+        let _ = self.handle().emit("model-deleted", model_id);
 
         Ok(())
     }
@@ -1509,7 +1501,7 @@ impl ModelManager {
         self.update_download_status()?;
 
         // Emit cancellation event so all UI components can clear their state
-        let _ = self.app_handle.emit("model-download-cancelled", model_id);
+        let _ = self.handle().emit("model-download-cancelled", model_id);
 
         info!("Download cancellation initiated for: {}", model_id);
         Ok(())
@@ -1525,7 +1517,8 @@ mod m2_default_model {
         let binding = mm.models();
         let rec: Vec<&str> = binding.values()
             .filter(|m| m.is_recommended).map(|m| m.id.as_str()).collect();
-        assert_eq!(rec, vec!["parakeet-tdt-0.6b-v2"]);
+        assert_eq!(rec.len(), 1, "expected exactly one recommended model");
+        assert_eq!(rec[0], "parakeet-tdt-0.6b-v2");
     }
 }
 
