@@ -657,7 +657,10 @@ fn default_typing_tool() -> TypingTool {
 }
 
 fn default_vad_threshold() -> f32 {
-    0.4
+    // Silero v6's recommended operating point. Higher (less sensitive) than the
+    // initial 0.4 — with no detection-gain in front of the model, a lower
+    // threshold over-captured quiet noise and garbled transcription.
+    0.5
 }
 
 fn ensure_post_process_defaults(settings: &mut AppSettings) -> bool {
@@ -1016,8 +1019,8 @@ mod vad_threshold_tests {
     use super::*;
 
     #[test]
-    fn default_vad_threshold_is_0_4() {
-        assert_eq!(default_vad_threshold(), 0.4);
+    fn default_vad_threshold_is_0_5() {
+        assert_eq!(default_vad_threshold(), 0.5);
     }
 
     #[test]
@@ -1033,6 +1036,6 @@ mod vad_threshold_tests {
 
         // Missing key falls back to the default.
         let p2: Probe = serde_json::from_str("{}").unwrap();
-        assert_eq!(p2.vad_threshold, 0.4);
+        assert_eq!(p2.vad_threshold, 0.5);
     }
 }
