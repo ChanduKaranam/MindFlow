@@ -580,6 +580,9 @@ fn run_consumer(
                         process_and_deliver(frame, &denoiser, &mut reframe, true, &vad, &mut processed_samples)
                     });
 
+                    // Any sub-512-sample remainder left in `reframe` is intentionally
+                    // discarded here (≤ ~32 ms, below ASR sensitivity; the VAD's
+                    // 512-frame contract cannot accept a partial block).
                     let _ = reply_tx.send(std::mem::take(&mut processed_samples));
 
                     // Resume the audio callback so the consumer loop can continue

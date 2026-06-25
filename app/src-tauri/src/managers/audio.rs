@@ -177,6 +177,11 @@ pub struct AudioRecordingManager {
     app_handle: tauri::AppHandle,
 
     recorder: Arc<Mutex<Option<AudioRecorder>>>,
+    // Mirrors the `noise_suppression` value used when the recorder was created
+    // in `preload_vad`.  Kept in sync so `stop_recording` can gate
+    // `normalize_clip` on the same value that determined whether a denoiser was
+    // attached — not a fresh settings read that may have diverged.
+    recorder_noise_suppression: Arc<Mutex<bool>>,
     is_open: Arc<Mutex<bool>>,
     is_recording: Arc<Mutex<bool>>,
     did_mute: Arc<Mutex<bool>>,
@@ -200,6 +205,7 @@ impl AudioRecordingManager {
             app_handle: app.clone(),
 
             recorder: Arc::new(Mutex::new(None)),
+            recorder_noise_suppression: Arc::new(Mutex::new(false)),
             is_open: Arc::new(Mutex::new(false)),
             is_recording: Arc::new(Mutex::new(false)),
             did_mute: Arc::new(Mutex::new(false)),
@@ -311,6 +317,11 @@ impl AudioRecordingManager {
                 noise_suppression,
                 &self.app_handle,
             )?);
+            // Capture the noise_suppression value used at recorder-creation time
+            // so stop_recording can gate normalize_clip consistently with whether
+            // the denoiser was actually attached.  Toggling the setting after
+            // this point takes effect when the recorder is next (re)created.
+            *self.recorder_noise_suppression.lock().unwrap() = noise_suppression;
         }
         Ok(())
     }
@@ -516,7 +527,10 @@ impl AudioRecordingManager {
                 // that denoised audio (which can be quieter than raw mic input)
                 // reaches Whisper at a consistent loudness level. When off, the
                 // buffer is returned unchanged (byte-identical to prior behaviour).
-                let samples = if get_settings(&self.app_handle).noise_suppression {
+                // Use the value stored at recorder-creation time (not a fresh
+                // settings read) to stay consistent with whether a denoiser was
+                // actually attached to this recorder instance.
+                let samples = if *self.recorder_noise_suppression.lock().unwrap() {
                     normalize_clip(&samples, -20.0, 10.0)
                 } else {
                     samples
