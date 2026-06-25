@@ -281,9 +281,11 @@ impl AudioRecordingManager {
                     tauri::path::BaseDirectory::Resource,
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
+            let settings = get_settings(&self.app_handle);
+            let vad_threshold = settings.vad_threshold;
             *recorder_opt = Some(create_audio_recorder(
                 vad_path.to_str().unwrap(),
-                0.4,
+                vad_threshold,
                 &self.app_handle,
             )?);
         }

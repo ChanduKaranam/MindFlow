@@ -430,6 +430,8 @@ pub struct AppSettings {
     pub whisper_gpu_device: i32,
     #[serde(default)]
     pub extra_recording_buffer_ms: u64,
+    #[serde(default = "default_vad_threshold")]
+    pub vad_threshold: f32,
 }
 
 fn default_model() -> String {
@@ -654,6 +656,10 @@ fn default_typing_tool() -> TypingTool {
     TypingTool::Auto
 }
 
+fn default_vad_threshold() -> f32 {
+    0.4
+}
+
 fn ensure_post_process_defaults(settings: &mut AppSettings) -> bool {
     let mut changed = false;
     for provider in default_post_process_providers() {
@@ -814,6 +820,7 @@ pub fn get_default_settings() -> AppSettings {
         ort_accelerator: OrtAcceleratorSetting::default(),
         whisper_gpu_device: default_whisper_gpu_device(),
         extra_recording_buffer_ms: 0,
+        vad_threshold: default_vad_threshold(),
     }
 }
 
@@ -1001,5 +1008,31 @@ mod m2_cpu_defaults {
         let s = get_default_settings();
         assert_eq!(s.whisper_accelerator, WhisperAcceleratorSetting::Cpu);
         assert_eq!(s.ort_accelerator, OrtAcceleratorSetting::Cpu);
+    }
+}
+
+#[cfg(test)]
+mod vad_threshold_tests {
+    use super::*;
+
+    #[test]
+    fn default_vad_threshold_is_0_4() {
+        assert_eq!(default_vad_threshold(), 0.4);
+    }
+
+    #[test]
+    fn vad_threshold_survives_serde_round_trip() {
+        let json = r#"{"vad_threshold": 0.25}"#;
+        #[derive(serde::Deserialize)]
+        struct Probe {
+            #[serde(default = "default_vad_threshold")]
+            vad_threshold: f32,
+        }
+        let p: Probe = serde_json::from_str(json).unwrap();
+        assert_eq!(p.vad_threshold, 0.25);
+
+        // Missing key falls back to the default.
+        let p2: Probe = serde_json::from_str("{}").unwrap();
+        assert_eq!(p2.vad_threshold, 0.4);
     }
 }
