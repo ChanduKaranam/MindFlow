@@ -15,6 +15,7 @@ use cpal::{
 use crate::audio_toolkit::{
     audio::{AudioVisualiser, FrameResampler},
     constants,
+    denoise::Denoiser,
     vad::{self, VadFrame},
     VoiceActivityDetector,
 };
@@ -35,6 +36,7 @@ pub struct AudioRecorder {
     cmd_tx: Option<mpsc::Sender<Cmd>>,
     worker_handle: Option<std::thread::JoinHandle<()>>,
     vad: Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
+    denoiser: Option<Arc<Mutex<Box<dyn Denoiser>>>>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
 }
 
@@ -45,12 +47,18 @@ impl AudioRecorder {
             cmd_tx: None,
             worker_handle: None,
             vad: None,
+            denoiser: None,
             level_cb: None,
         })
     }
 
     pub fn with_vad(mut self, vad: Box<dyn VoiceActivityDetector>) -> Self {
         self.vad = Some(Arc::new(Mutex::new(vad)));
+        self
+    }
+
+    pub fn with_denoiser(mut self, denoiser: Box<dyn Denoiser>) -> Self {
+        self.denoiser = Some(Arc::new(Mutex::new(denoiser)));
         self
     }
 
@@ -81,6 +89,7 @@ impl AudioRecorder {
 
         let thread_device = device.clone();
         let vad = self.vad.clone();
+        let denoiser = self.denoiser.clone();
         // Move the optional level callback into the worker thread
         let level_cb = self.level_cb.clone();
 
@@ -159,7 +168,7 @@ impl AudioRecorder {
                 Ok((stream, sample_rate)) => {
                     let _ = init_tx.send(Ok(()));
                     // Keep the stream alive while we process samples.
-                    run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb, stop_flag);
+                    run_consumer(sample_rate, vad, denoiser, sample_rx, cmd_rx, level_cb, stop_flag);
                     drop(stream);
                 }
                 Err(error_message) => {
@@ -351,7 +360,9 @@ pub fn is_no_input_device_error(error_message: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_microphone_access_denied, is_no_input_device_error};
+    use super::{is_microphone_access_denied, is_no_input_device_error, process_and_deliver};
+    use crate::audio_toolkit::denoise::Denoiser;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn detects_access_is_denied() {
@@ -390,11 +401,80 @@ mod tests {
         assert!(!is_no_input_device_error("permission denied"));
         assert!(!is_no_input_device_error("device not found"));
     }
+
+    /// With denoiser=None the re-frame path must be byte-identical to feeding
+    /// the frames directly — no gain, no reordering, no sample loss.
+    #[test]
+    fn denoiser_none_is_passthrough() {
+        let frame1: Vec<f32> = (0..512).map(|i| i as f32 / 512.0).collect();
+        let frame2: Vec<f32> = (0..512).map(|i| -(i as f32 / 512.0)).collect();
+
+        let mut reframe = Vec::new();
+        let mut out = Vec::new();
+        let denoiser: Option<Arc<Mutex<Box<dyn Denoiser>>>> = None;
+        let vad = None;
+
+        process_and_deliver(&frame1, &denoiser, &mut reframe, true, &vad, &mut out);
+        process_and_deliver(&frame2, &denoiser, &mut reframe, true, &vad, &mut out);
+
+        let mut expected = frame1.clone();
+        expected.extend_from_slice(&frame2);
+        assert_eq!(out, expected, "denoiser=None must produce byte-identical output");
+        assert!(reframe.is_empty(), "reframe must be fully drained after exact 512-sample frames");
+    }
+}
+
+/// Deliver one 16 kHz mono frame to the VAD/passthrough sink.
+/// This is the terminal stage — it decides whether to append samples to the
+/// capture buffer based on VAD verdict.
+fn handle_frame(
+    samples: &[f32],
+    recording: bool,
+    vad: &Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
+    out_buf: &mut Vec<f32>,
+) {
+    if !recording {
+        return;
+    }
+
+    if let Some(vad_arc) = vad {
+        let mut det = vad_arc.lock().unwrap();
+        match det.push_frame(samples).unwrap_or(VadFrame::Speech(samples)) {
+            VadFrame::Speech(buf) => out_buf.extend_from_slice(buf),
+            VadFrame::Noise => {}
+        }
+    } else {
+        out_buf.extend_from_slice(samples);
+    }
+}
+
+/// Pass a 512-sample resampled frame through the optional denoiser, accumulate
+/// the cleaned output in `reframe`, and drain complete 512-sample blocks into
+/// `handle_frame`. When `denoiser` is `None` the frame is forwarded unchanged
+/// (byte-identical to the pre-denoiser behaviour).
+fn process_and_deliver(
+    frame: &[f32],
+    denoiser: &Option<Arc<Mutex<Box<dyn Denoiser>>>>,
+    reframe: &mut Vec<f32>,
+    recording: bool,
+    vad: &Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
+    out_buf: &mut Vec<f32>,
+) {
+    let cleaned: Vec<f32> = match denoiser {
+        Some(d) => d.lock().unwrap().process(frame),
+        None => frame.to_vec(),
+    };
+    reframe.extend_from_slice(&cleaned);
+    while reframe.len() >= 512 {
+        let block: Vec<f32> = reframe.drain(..512).collect();
+        handle_frame(&block, recording, vad, out_buf);
+    }
 }
 
 fn run_consumer(
     in_sample_rate: u32,
     vad: Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
+    denoiser: Option<Arc<Mutex<Box<dyn Denoiser>>>>,
     sample_rx: mpsc::Receiver<AudioChunk>,
     cmd_rx: mpsc::Receiver<Cmd>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
@@ -407,6 +487,10 @@ fn run_consumer(
     );
 
     let mut processed_samples = Vec::<f32>::new();
+    // Re-frame buffer: accumulates denoiser output until a full 512-sample
+    // block is ready for the VAD. Kept across frames within one recording so
+    // the denoiser's streaming output is never split mid-block.
+    let mut reframe = Vec::<f32>::new();
     let mut recording = false;
 
     // ---------- spectrum visualisation setup ---------------------------- //
@@ -430,27 +514,6 @@ fn run_consumer(
         4000.0, // vocal_max_hz
     );
 
-    fn handle_frame(
-        samples: &[f32],
-        recording: bool,
-        vad: &Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
-        out_buf: &mut Vec<f32>,
-    ) {
-        if !recording {
-            return;
-        }
-
-        if let Some(vad_arc) = vad {
-            let mut det = vad_arc.lock().unwrap();
-            match det.push_frame(samples).unwrap_or(VadFrame::Speech(samples)) {
-                VadFrame::Speech(buf) => out_buf.extend_from_slice(buf),
-                VadFrame::Noise => {}
-            }
-        } else {
-            out_buf.extend_from_slice(samples);
-        }
-    }
-
     loop {
         let chunk = match sample_rx.recv() {
             Ok(c) => c,
@@ -469,9 +532,9 @@ fn run_consumer(
             }
         }
 
-        // ---------- existing pipeline ------------------------------------ //
+        // ---------- denoise + reframe + VAD pipeline --------------------- //
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
-            handle_frame(frame, recording, &vad, &mut processed_samples)
+            process_and_deliver(frame, &denoiser, &mut reframe, recording, &vad, &mut processed_samples)
         });
 
         // non-blocking check for a command
@@ -480,10 +543,14 @@ fn run_consumer(
                 Cmd::Start => {
                     stop_flag.store(false, Ordering::Relaxed);
                     processed_samples.clear();
+                    reframe.clear();
                     recording = true;
                     visualizer.reset();
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
+                    }
+                    if let Some(d) = &denoiser {
+                        d.lock().unwrap().reset();
                     }
                 }
                 Cmd::Stop(reply_tx) => {
@@ -498,7 +565,7 @@ fn run_consumer(
                         match sample_rx.recv_timeout(Duration::from_secs(2)) {
                             Ok(AudioChunk::Samples(remaining)) => {
                                 frame_resampler.push(&remaining, &mut |frame: &[f32]| {
-                                    handle_frame(frame, true, &vad, &mut processed_samples)
+                                    process_and_deliver(frame, &denoiser, &mut reframe, true, &vad, &mut processed_samples)
                                 });
                             }
                             Ok(AudioChunk::EndOfStream) => break,
@@ -510,7 +577,7 @@ fn run_consumer(
                     }
 
                     frame_resampler.finish(&mut |frame: &[f32]| {
-                        handle_frame(frame, true, &vad, &mut processed_samples)
+                        process_and_deliver(frame, &denoiser, &mut reframe, true, &vad, &mut processed_samples)
                     });
 
                     let _ = reply_tx.send(std::mem::take(&mut processed_samples));

@@ -1,4 +1,6 @@
 use crate::audio_toolkit::{
+    audio::gain::normalize_clip,
+    denoise::GtcrnDenoiser,
     list_input_devices,
     vad::{SileroV6Vad, SmoothedVad},
     AudioRecorder,
@@ -124,6 +126,7 @@ pub enum MicrophoneMode {
 fn create_audio_recorder(
     vad_path: &str,
     threshold: f32,
+    noise_suppression: bool,
     app_handle: &tauri::AppHandle,
 ) -> Result<AudioRecorder, anyhow::Error> {
     let silero = SileroV6Vad::new(vad_path, threshold)
@@ -144,6 +147,23 @@ fn create_audio_recorder(
                 utils::emit_levels(&app_handle, &levels);
             }
         });
+
+    // Attach the GTCRN denoiser only when the setting is on so the pipeline is
+    // byte-identical to the pre-denoiser path when noise_suppression is false.
+    let recorder = if noise_suppression {
+        let denoise_path = app_handle
+            .path()
+            .resolve(
+                "resources/models/gtcrn_simple.onnx",
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to resolve GTCRN model path: {}", e))?;
+        let denoiser = GtcrnDenoiser::new(&denoise_path)
+            .map_err(|e| anyhow::anyhow!("Failed to load GTCRN denoiser: {}", e))?;
+        recorder.with_denoiser(Box::new(denoiser))
+    } else {
+        recorder
+    };
 
     Ok(recorder)
 }
@@ -284,9 +304,11 @@ impl AudioRecordingManager {
                 .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
             let settings = get_settings(&self.app_handle);
             let vad_threshold = settings.vad_threshold;
+            let noise_suppression = settings.noise_suppression;
             *recorder_opt = Some(create_audio_recorder(
                 vad_path.to_str().unwrap(),
                 vad_threshold,
+                noise_suppression,
                 &self.app_handle,
             )?);
         }
@@ -482,13 +504,25 @@ impl AudioRecordingManager {
                 // Pad if very short
                 let s_len = samples.len();
                 // debug!("Got {} samples", s_len);
-                if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
+                let samples = if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
                     let mut padded = samples;
                     padded.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
-                    Some(padded)
+                    padded
                 } else {
-                    Some(samples)
-                }
+                    samples
+                };
+
+                // Normalize the captured clip when noise suppression is on so
+                // that denoised audio (which can be quieter than raw mic input)
+                // reaches Whisper at a consistent loudness level. When off, the
+                // buffer is returned unchanged (byte-identical to prior behaviour).
+                let samples = if get_settings(&self.app_handle).noise_suppression {
+                    normalize_clip(&samples, -20.0, 10.0)
+                } else {
+                    samples
+                };
+
+                Some(samples)
             }
             _ => None,
         }
