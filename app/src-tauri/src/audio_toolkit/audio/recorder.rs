@@ -534,7 +534,9 @@ fn run_consumer(
 
         // ---------- denoise + reframe + VAD pipeline --------------------- //
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
-            process_and_deliver(frame, &denoiser, &mut reframe, recording, &vad, &mut processed_samples)
+            if recording {
+                process_and_deliver(frame, &denoiser, &mut reframe, recording, &vad, &mut processed_samples)
+            }
         });
 
         // non-blocking check for a command
