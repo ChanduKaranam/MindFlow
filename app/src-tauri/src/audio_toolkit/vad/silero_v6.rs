@@ -5,17 +5,11 @@ use ort::value::Value;
 use std::path::Path;
 
 use super::{VadFrame, VoiceActivityDetector};
-use crate::audio_toolkit::audio::gain;
 
 /// Silero v6 requires exactly 512 samples (32 ms) per inference at 16 kHz.
 const V6_FRAME_SAMPLES: usize = 512;
 /// Sample rate expected by the model.
 const V6_SAMPLE_RATE: i64 = 16000;
-
-// Detection-only gain defaults (see audio_toolkit::audio::gain).
-const GAIN_TARGET_DBFS: f32 = -20.0;
-const GAIN_NOISE_GATE_DBFS: f32 = -50.0;
-const GAIN_MAX: f32 = 8.0;
 
 pub struct SileroV6Vad {
     session: Session,
@@ -54,11 +48,11 @@ impl SileroV6Vad {
         if frame.len() != V6_FRAME_SAMPLES {
             anyhow::bail!("expected {V6_FRAME_SAMPLES} samples, got {}", frame.len());
         }
-        // Boost soft speech for detection only (the original `frame` is what the
-        // caller keeps for transcription).
-        let boosted = gain::rms_normalized(frame, GAIN_TARGET_DBFS, GAIN_NOISE_GATE_DBFS, GAIN_MAX);
-
-        let input = Array2::from_shape_vec((1, boosted.len()), boosted)?;
+        // Feed the raw frame straight to the model. Silero v6 is trained on
+        // natural-amplitude audio and is already robust to soft speech; an
+        // earlier per-frame gain stage warped the amplitude its temporal model
+        // relies on and caused it to over-fire on quiet noise.
+        let input = Array2::from_shape_vec((1, frame.len()), frame.to_vec())?;
         let input_value = Value::from_array(input)?;
         let state_value = Value::from_array(self.state.clone())?;
         // v6.0 model requires a scalar int64 `sr` input (sample rate).

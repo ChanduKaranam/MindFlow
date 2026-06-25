@@ -128,9 +128,10 @@ fn create_audio_recorder(
 ) -> Result<AudioRecorder, anyhow::Error> {
     let silero = SileroV6Vad::new(vad_path, threshold)
         .map_err(|e| anyhow::anyhow!("Failed to create SileroV6Vad: {}", e))?;
-    // Frames are now 32 ms: 14 frames ≈ 448 ms pre-roll / hang-over; onset 1 = snappier
-    // start so the first quiet syllable is not clipped.
-    let smoothed_vad = SmoothedVad::new(Box::new(silero), 14, 14, 1);
+    // Frames are 32 ms. 15/15/2 ≈ 480 ms pre-roll / hang-over with a 2-frame
+    // onset — the proven, conservative tuning. A 1-frame onset let brief noise
+    // spikes trigger false speech starts, padding the audio with junk.
+    let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
 
     // Recorder with VAD plus a spectrum-level callback that forwards updates to
     // the frontend.

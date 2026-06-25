@@ -257,7 +257,8 @@
       "Read(//tmp/**)",
       "Bash(tee /tmp/final_test.log)",
       "Bash(cargo run *)",
-      "Bash(bun run *)"
+      "Bash(bun run *)",
+      "Bash(echo \"=== EXIT CODE: $? ===\")"
     ]
   }
 }
