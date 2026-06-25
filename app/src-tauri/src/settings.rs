@@ -432,6 +432,8 @@ pub struct AppSettings {
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_vad_threshold")]
     pub vad_threshold: f32,
+    #[serde(default = "default_noise_suppression")]
+    pub noise_suppression: bool,
 }
 
 fn default_model() -> String {
@@ -656,6 +658,10 @@ fn default_typing_tool() -> TypingTool {
     TypingTool::Auto
 }
 
+fn default_noise_suppression() -> bool {
+    true
+}
+
 fn default_vad_threshold() -> f32 {
     // Silero v6's recommended operating point. Higher (less sensitive) than the
     // initial 0.4 — with no detection-gain in front of the model, a lower
@@ -824,6 +830,7 @@ pub fn get_default_settings() -> AppSettings {
         whisper_gpu_device: default_whisper_gpu_device(),
         extra_recording_buffer_ms: 0,
         vad_threshold: default_vad_threshold(),
+        noise_suppression: default_noise_suppression(),
     }
 }
 
@@ -1011,6 +1018,27 @@ mod m2_cpu_defaults {
         let s = get_default_settings();
         assert_eq!(s.whisper_accelerator, WhisperAcceleratorSetting::Cpu);
         assert_eq!(s.ort_accelerator, OrtAcceleratorSetting::Cpu);
+    }
+}
+
+#[cfg(test)]
+mod noise_suppression_tests {
+    #[test]
+    fn default_noise_suppression_is_true() {
+        assert!(super::default_noise_suppression());
+    }
+
+    #[test]
+    fn noise_suppression_round_trip() {
+        #[derive(serde::Deserialize)]
+        struct Probe {
+            #[serde(default = "super::default_noise_suppression")]
+            noise_suppression: bool,
+        }
+        let p: Probe = serde_json::from_str(r#"{"noise_suppression": false}"#).unwrap();
+        assert!(!p.noise_suppression);
+        let p2: Probe = serde_json::from_str("{}").unwrap();
+        assert!(p2.noise_suppression);
     }
 }
 
