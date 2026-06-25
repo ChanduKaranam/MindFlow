@@ -44,7 +44,10 @@ bun run format:backend    # cargo fmt only
 
 ```bash
 mkdir -p src-tauri/resources/models
-curl -o src-tauri/resources/models/silero_vad_v4.onnx https://blob.handy.computer/silero_vad_v4.onnx
+# Silero v6 VAD (MIT) — the live recording pipeline's voice-activity detector.
+# Pinned to the v6.0 release; SHA256 597d30b3ec076608d059477bb14cfeffdf951bf5cae370d38f65d33bbfe82004
+curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
+  https://github.com/snakers4/silero-vad/raw/v6.0/src/silero_vad/data/silero_vad.onnx
 ```
 
 For detailed platform-specific build setup, see [BUILD.md](BUILD.md).

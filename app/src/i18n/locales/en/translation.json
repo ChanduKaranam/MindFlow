@@ -237,6 +237,10 @@
       "volume": {
         "title": "Volume",
         "description": "Adjust the volume of audio feedback sounds"
+      },
+      "micSensitivity": {
+        "title": "Microphone sensitivity",
+        "description": "Higher catches softer speech; lower ignores more background noise."
       }
     },
     "advanced": {
