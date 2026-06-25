@@ -26,6 +26,24 @@ pub fn rms_normalized(frame: &[f32], target_dbfs: f32, noise_gate_dbfs: f32, max
     frame.iter().map(|s| (s * gain).clamp(-1.0, 1.0)).collect()
 }
 
+/// Normalize a whole captured clip toward `target_dbfs` with a single gain,
+/// clamped to `[1.0, max_gain]` (boost-only). Output clamped to [-1, 1].
+pub fn normalize_clip(samples: &[f32], target_dbfs: f32, max_gain: f32) -> Vec<f32> {
+    if samples.is_empty() {
+        return Vec::new();
+    }
+    let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
+    if rms <= 1e-9 {
+        return samples.to_vec();
+    }
+    let target_rms = 10f32.powf(target_dbfs / 20.0);
+    let gain = (target_rms / rms).clamp(1.0, max_gain);
+    if gain == 1.0 {
+        return samples.to_vec();
+    }
+    samples.iter().map(|s| (s * gain).clamp(-1.0, 1.0)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,5 +102,27 @@ mod tests {
         // Gain capped at 8x, so the loudest sample is at most 8 * 0.004 = 0.032.
         let peak = out.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
         assert!(peak <= 0.04, "gain not clamped: peak={peak}");
+    }
+
+    #[test]
+    fn normalize_clip_boosts_quiet_clip_toward_target() {
+        let quiet: Vec<f32> = (0..16000).map(|i| 0.02 * (i as f32 * 0.05).sin()).collect();
+        let before = (quiet.iter().map(|s| s * s).sum::<f32>() / quiet.len() as f32).sqrt();
+        let out = normalize_clip(&quiet, -20.0, 10.0);
+        let after = (out.iter().map(|s| s * s).sum::<f32>() / out.len() as f32).sqrt();
+        assert!(after > before * 2.0, "clip not boosted: {before} -> {after}");
+        assert!(out.iter().all(|&s| (-1.0..=1.0).contains(&s)));
+    }
+
+    #[test]
+    fn normalize_clip_leaves_loud_clip_unchanged() {
+        let loud: Vec<f32> = (0..16000).map(|i| 0.5 * (i as f32 * 0.05).sin()).collect();
+        let out = normalize_clip(&loud, -20.0, 10.0);
+        assert_eq!(out, loud);
+    }
+
+    #[test]
+    fn normalize_clip_handles_empty() {
+        assert!(normalize_clip(&[], -20.0, 10.0).is_empty());
     }
 }
