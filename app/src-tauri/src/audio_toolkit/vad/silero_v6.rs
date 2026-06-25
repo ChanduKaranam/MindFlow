@@ -51,6 +51,9 @@ impl SileroV6Vad {
 
     /// Run one 512-sample frame; returns speech probability and advances LSTM state.
     pub fn probability(&mut self, frame: &[f32]) -> Result<f32> {
+        if frame.len() != V6_FRAME_SAMPLES {
+            anyhow::bail!("expected {V6_FRAME_SAMPLES} samples, got {}", frame.len());
+        }
         // Boost soft speech for detection only (the original `frame` is what the
         // caller keeps for transcription).
         let boosted = gain::rms_normalized(frame, GAIN_TARGET_DBFS, GAIN_NOISE_GATE_DBFS, GAIN_MAX);
