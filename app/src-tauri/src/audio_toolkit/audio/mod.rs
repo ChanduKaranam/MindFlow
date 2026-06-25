@@ -1,6 +1,7 @@
 // Re-export all audio components
 mod device;
 pub mod gain;
+pub mod stft;
 mod recorder;
 mod resampler;
 mod utils;

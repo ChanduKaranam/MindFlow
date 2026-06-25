@@ -48,6 +48,9 @@ mkdir -p src-tauri/resources/models
 # Pinned to the v6.0 release; SHA256 597d30b3ec076608d059477bb14cfeffdf951bf5cae370d38f65d33bbfe82004
 curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
   https://github.com/snakers4/silero-vad/raw/v6.0/src/silero_vad/data/silero_vad.onnx
+# GTCRN noise-suppression model (MIT)
+curl -L -o src-tauri/resources/models/gtcrn_simple.onnx \
+  https://github.com/Xiaobin-Rong/gtcrn/raw/main/stream/onnx_models/gtcrn_simple.onnx
 ```
 
 For detailed platform-specific build setup, see [BUILD.md](BUILD.md).

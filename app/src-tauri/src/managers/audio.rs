@@ -1,4 +1,6 @@
 use crate::audio_toolkit::{
+    audio::gain::normalize_clip,
+    denoise::GtcrnDenoiser,
     list_input_devices,
     vad::{SileroV6Vad, SmoothedVad},
     AudioRecorder,
@@ -124,6 +126,7 @@ pub enum MicrophoneMode {
 fn create_audio_recorder(
     vad_path: &str,
     threshold: f32,
+    noise_suppression: bool,
     app_handle: &tauri::AppHandle,
 ) -> Result<AudioRecorder, anyhow::Error> {
     let silero = SileroV6Vad::new(vad_path, threshold)
@@ -145,6 +148,23 @@ fn create_audio_recorder(
             }
         });
 
+    // Attach the GTCRN denoiser only when the setting is on so the pipeline is
+    // byte-identical to the pre-denoiser path when noise_suppression is false.
+    let recorder = if noise_suppression {
+        let denoise_path = app_handle
+            .path()
+            .resolve(
+                "resources/models/gtcrn_simple.onnx",
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to resolve GTCRN model path: {}", e))?;
+        let denoiser = GtcrnDenoiser::new(&denoise_path)
+            .map_err(|e| anyhow::anyhow!("Failed to load GTCRN denoiser: {}", e))?;
+        recorder.with_denoiser(Box::new(denoiser))
+    } else {
+        recorder
+    };
+
     Ok(recorder)
 }
 
@@ -157,6 +177,11 @@ pub struct AudioRecordingManager {
     app_handle: tauri::AppHandle,
 
     recorder: Arc<Mutex<Option<AudioRecorder>>>,
+    // Mirrors the `noise_suppression` value used when the recorder was created
+    // in `preload_vad`.  Kept in sync so `stop_recording` can gate
+    // `normalize_clip` on the same value that determined whether a denoiser was
+    // attached — not a fresh settings read that may have diverged.
+    recorder_noise_suppression: Arc<Mutex<bool>>,
     is_open: Arc<Mutex<bool>>,
     is_recording: Arc<Mutex<bool>>,
     did_mute: Arc<Mutex<bool>>,
@@ -180,6 +205,7 @@ impl AudioRecordingManager {
             app_handle: app.clone(),
 
             recorder: Arc::new(Mutex::new(None)),
+            recorder_noise_suppression: Arc::new(Mutex::new(false)),
             is_open: Arc::new(Mutex::new(false)),
             is_recording: Arc::new(Mutex::new(false)),
             did_mute: Arc::new(Mutex::new(false)),
@@ -284,11 +310,18 @@ impl AudioRecordingManager {
                 .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
             let settings = get_settings(&self.app_handle);
             let vad_threshold = settings.vad_threshold;
+            let noise_suppression = settings.noise_suppression;
             *recorder_opt = Some(create_audio_recorder(
                 vad_path.to_str().unwrap(),
                 vad_threshold,
+                noise_suppression,
                 &self.app_handle,
             )?);
+            // Capture the noise_suppression value used at recorder-creation time
+            // so stop_recording can gate normalize_clip consistently with whether
+            // the denoiser was actually attached.  Toggling the setting after
+            // this point takes effect when the recorder is next (re)created.
+            *self.recorder_noise_suppression.lock().unwrap() = noise_suppression;
         }
         Ok(())
     }
@@ -482,13 +515,28 @@ impl AudioRecordingManager {
                 // Pad if very short
                 let s_len = samples.len();
                 // debug!("Got {} samples", s_len);
-                if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
+                let samples = if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
                     let mut padded = samples;
                     padded.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
-                    Some(padded)
+                    padded
                 } else {
-                    Some(samples)
-                }
+                    samples
+                };
+
+                // Normalize the captured clip when noise suppression is on so
+                // that denoised audio (which can be quieter than raw mic input)
+                // reaches Whisper at a consistent loudness level. When off, the
+                // buffer is returned unchanged (byte-identical to prior behaviour).
+                // Use the value stored at recorder-creation time (not a fresh
+                // settings read) to stay consistent with whether a denoiser was
+                // actually attached to this recorder instance.
+                let samples = if *self.recorder_noise_suppression.lock().unwrap() {
+                    normalize_clip(&samples, -20.0, 10.0)
+                } else {
+                    samples
+                };
+
+                Some(samples)
             }
             _ => None,
         }

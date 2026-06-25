@@ -258,7 +258,27 @@
       "Bash(tee /tmp/final_test.log)",
       "Bash(cargo run *)",
       "Bash(bun run *)",
-      "Bash(echo \"=== EXIT CODE: $? ===\")"
+      "Bash(echo \"=== EXIT CODE: $? ===\")",
+      "WebFetch(domain:www.emergentmind.com)",
+      "WebFetch(domain:ieeexplore.ieee.org)",
+      "Bash(~/.local/bin/gh api *)",
+      "WebFetch(domain:jmvalin.ca)",
+      "Bash(grep -i '\\\\.md$\\\\|state\\\\|stream\\\\|onnx')",
+      "WebFetch(domain:noisereducerai.com)",
+      "WebFetch(domain:ar5iv.org)",
+      "WebFetch(domain:onnx.ai)",
+      "WebFetch(domain:www.researchgate.net)",
+      "WebFetch(domain:www.modelscope.cn)",
+      "Bash(pip install *)",
+      "WebFetch(domain:webmachinelearning.github.io)",
+      "WebFetch(domain:www.semanticscholar.org)",
+      "WebFetch(domain:research.samsung.com)",
+      "Bash(command -v python3 python pip pip3 pdftotext)",
+      "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:fhgainr.github.io)",
+      "WebFetch(domain:facebookresearch.github.io)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo build *)"
     ]
   }
 }
