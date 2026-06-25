@@ -241,6 +241,10 @@
       "micSensitivity": {
         "title": "Microphone sensitivity",
         "description": "Higher catches softer speech; lower ignores more background noise."
+      },
+      "noiseSuppression": {
+        "title": "Noise suppression",
+        "description": "Automatically remove background noise so your voice is captured clearly."
       }
     },
     "advanced": {
