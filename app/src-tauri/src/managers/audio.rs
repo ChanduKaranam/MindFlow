@@ -1,4 +1,8 @@
-use crate::audio_toolkit::{list_input_devices, vad::SmoothedVad, AudioRecorder, SileroVad};
+use crate::audio_toolkit::{
+    list_input_devices,
+    vad::{SileroV6Vad, SmoothedVad},
+    AudioRecorder,
+};
 use crate::helpers::clamshell;
 use crate::settings::{get_settings, AppSettings};
 use crate::utils;
@@ -119,11 +123,14 @@ pub enum MicrophoneMode {
 
 fn create_audio_recorder(
     vad_path: &str,
+    threshold: f32,
     app_handle: &tauri::AppHandle,
 ) -> Result<AudioRecorder, anyhow::Error> {
-    let silero = SileroVad::new(vad_path, 0.3)
-        .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {}", e))?;
-    let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
+    let silero = SileroV6Vad::new(vad_path, threshold)
+        .map_err(|e| anyhow::anyhow!("Failed to create SileroV6Vad: {}", e))?;
+    // Frames are now 32 ms: 14 frames ≈ 448 ms pre-roll / hang-over; onset 1 = snappier
+    // start so the first quiet syllable is not clipped.
+    let smoothed_vad = SmoothedVad::new(Box::new(silero), 14, 14, 1);
 
     // Recorder with VAD plus a spectrum-level callback that forwards updates to
     // the frontend.
@@ -270,12 +277,13 @@ impl AudioRecordingManager {
                 .app_handle
                 .path()
                 .resolve(
-                    "resources/models/silero_vad_v4.onnx",
+                    "resources/models/silero_vad_v6.onnx",
                     tauri::path::BaseDirectory::Resource,
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
             *recorder_opt = Some(create_audio_recorder(
                 vad_path.to_str().unwrap(),
+                0.4,
                 &self.app_handle,
             )?);
         }

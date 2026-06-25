@@ -403,7 +403,7 @@ fn run_consumer(
     let mut frame_resampler = FrameResampler::new(
         in_sample_rate as usize,
         constants::WHISPER_SAMPLE_RATE as usize,
-        Duration::from_millis(30),
+        Duration::from_millis(32), // 512 samples @ 16 kHz — required by Silero v6
     );
 
     let mut processed_samples = Vec::<f32>::new();
