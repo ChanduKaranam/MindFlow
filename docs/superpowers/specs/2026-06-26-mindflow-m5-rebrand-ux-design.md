@@ -80,7 +80,9 @@ Replaces the current pink (`--color-background-ui: #da5893`) and pink-logo token
 
 **Compatibility:** `tailwind.config.js` currently maps `background`, `text`, `logo-primary`, `logo-stroke`, `text-stroke`. The new tokens are added to both `App.css` `@theme`/`:root` blocks and `tailwind.config.js`. The legacy `--color-background-ui` / `logo-*` tokens are **renamed/retired**; every component referencing them (e.g. `Button` `bg-background-ui`, `da5893`) is repointed to `--color-accent`. A grep sweep for `background-ui`, `logo-primary`, `logo-stroke`, `text-stroke`, and `da5893` enumerates the call sites.
 
-**WCAG:** every text/background pairing in both themes must clear 4.5:1 (normal) / 3:1 (large + UI components). Gold fills always carry dark (`--color-on-accent`) text.
+The solid `--color-accent` (`#E0A53F`) above is the **fallback**; the primary brand expression is the **metallic gold gradient** in §3.4. Solid is used only where a gradient can't apply (16px tray glyph, single-color icons, focus rings, `currentColor` contexts).
+
+**WCAG:** every text/background pairing in both themes must clear 4.5:1 (normal) / 3:1 (large + UI components). Gold fills always carry dark (`--color-on-accent`) text. Glass surfaces (§3.4) must be tested at worst-case (lightest possible background showing through) and stay ≥4.5:1 for the text they hold.
 
 ### 3.2 Typography
 
@@ -96,6 +98,39 @@ All transitions **< 400ms** (Doherty). Use existing Tailwind transition utilitie
 - UI feedback (toggles, button press, nav active): **150ms**, standard easing `cubic-bezier(0.2,0,0,1)`.
 - Panels / onboarding step transitions / overlays: **300ms**, emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`.
 - The recording/live indicator pulses on the teal `--color-live`; a calm, slow pulse when idle-listening. (A full audio-reactive waveform is out of scope — §9 — a CSS pulse is the M5 deliverable.)
+- **Gold sheen sweep** (decorative, not feedback): on hover of primary gold elements, a soft diagonal highlight band translates across once, ~600ms ease-out. This intentionally exceeds the 400ms feedback ceiling because it is *ambient decoration*, not interaction latency — the click/press state still fires <150ms. Honors `prefers-reduced-motion` (sheen + ambient drift disabled).
+
+### 3.4 Material — reflective gold & glassmorphism
+
+The premium feel comes from two materials layered on the dark canvas: **metallic gold** for brand/primary surfaces and **frosted glass** for chrome.
+
+**3.4.1 Reflective ("metallic") gold.** Gradient tokens in `App.css`:
+
+| Token | Value | Use |
+|---|---|---|
+| `--gradient-gold` | `linear-gradient(135deg, #A9760F 0%, #E0A53F 28%, #FBE7A1 50%, #E0A53F 72%, #A9760F 100%)` | Primary buttons, brand fills, logo. The `#FBE7A1` center stop is the **specular highlight** that reads as "shine." |
+| `--gradient-gold-hover` | highlight shifted brighter/wider (`#FFF1C2` center, stops nudged) | Hover state |
+| `--gold-edge-highlight` | `inset 0 1px 0 rgba(255,255,255,0.45)` | Top inner highlight on gold buttons (lit metal edge) |
+| `--gold-edge-shadow` | `inset 0 -1px 0 rgba(0,0,0,0.30)` | Bottom inner shadow (depth) |
+
+- **Logo / wordmark / gold text:** apply `--gradient-gold` via `background-clip: text; color: transparent`.
+- **Gold buttons:** `background: var(--gradient-gold)` + both inset edge shadows + dark `--color-on-accent` text; hover swaps to `--gradient-gold-hover` and triggers the sheen sweep.
+- **SVG logo (§4):** the gold node uses an SVG `linearGradient` (same three gold stops) plus a small white highlight ellipse for a true reflective look; the 16px tray glyph falls back to solid `--color-accent`.
+- Contrast judged against the mid stop `#E0A53F` (dark text ≈ 8.4:1 ✓).
+
+**3.4.2 Glassmorphism.** Frosted translucent chrome. Tokens in `App.css`:
+
+| Token | Dark | Light | Notes |
+|---|---|---|---|
+| `--glass-bg` | `rgba(28,28,34,0.55)` | `rgba(255,255,255,0.60)` | Tinted enough to keep text contrast |
+| `--glass-blur` | `blur(18px) saturate(150%)` | same | `backdrop-filter` |
+| `--glass-border` | `1px solid rgba(255,255,255,0.10)` | `1px solid rgba(255,255,255,0.55)` | Glass edge; brighter top edge via inset highlight |
+| `--glass-shadow` | `0 8px 32px rgba(0,0,0,0.35)` | `0 8px 32px rgba(0,0,0,0.12)` | Floating depth |
+
+- **Applied to (chrome only):** settings **sidebar**, **cards / grouped panels** (`SettingsGroup` container — *not* each `SettingContainer` row), **modals** (incl. reset-confirm), **dropdowns / popovers / tooltips**, **onboarding step panels**, and the **recording overlay / pill**. Settings *rows* and dense lists stay on solid `--color-surface` for legibility and performance.
+- **Ambient background layer (required for glass to read):** a new low-cost `AmbientBackground` element renders 2–3 large, very-low-opacity blurred radial glows (gold + teal) on `--color-background`, drifting slowly (CSS, `prefers-reduced-motion`-aware, paused when the window is hidden). Without it, blur over a flat color is invisible.
+- **Fallback:** `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` → glass surfaces fall back to opaque `--color-surface` + border + shadow (no blur). Always include `-webkit-backdrop-filter` for WKWebView / older WebKitGTK.
+- **Performance guard (CPU-only):** cap simultaneous large blurred layers — one glass sidebar + one glass content container + transient modals/popovers. No glass nested in glass; no full-window blurred layer behind another blurred layer.
 
 ---
 
@@ -106,7 +141,7 @@ All transitions **< 400ms** (Doherty). Use existing Tailwind transition utilitie
 A **mind node + waveform** in one composition: a rounded node (the "mind" — origin of thought) from which a single continuous waveform line flows rightward; the waveform's two center peaks subtly form an **M**. Voice (wave) + Mind (node) + Flow (unbroken line).
 
 - **Shape language:** one filled node + one continuous open stroke, rounded caps, smooth Béziers (no sharp corners). Geometric, calm.
-- **Color:** node in **gold `#E0A53F`**; waveform stroke in **teal `#2DD4BF`** (two-tone warm/cool — avoids the muddy olive a gold→teal blended gradient would pass through). A monochrome variant (single `currentColor`) is provided for the 16px tray glyph and disabled states.
+- **Color:** node in **reflective gold** — an SVG `linearGradient` using the §3.4.1 stops (`#A9760F → #E0A53F → #FBE7A1 → #E0A53F → #A9760F`) plus a small white highlight ellipse for a true metallic sheen; waveform stroke in **teal `#2DD4BF`** (two-tone warm/cool — avoids the muddy olive a blended gold→teal gradient would pass through). A monochrome variant (single `currentColor`) is provided for the 16px tray glyph and disabled states (no gradient at that size).
 - **Buildable as clean SVG**, parameterized by `width`/`className`, mirroring the existing `HandyTextLogo` / `HandyHand` component API so swap-in is mechanical.
 
 ### 4.2 Deliverables
@@ -175,6 +210,7 @@ Current onboarding (`App.tsx` + `onboarding/`) is two stages: permissions → mo
 - `App.tsx` onboarding orchestration extended to sequence the new steps; existing permission-check / model-availability gating reused.
 - **Try-it-now mechanics:** reuse the existing transcription pipeline — the step focuses its own text field, listens for the same delivered-text path used in production, counts words, and times from first-audio to delivered-text. If the user skips (a low-emphasis "Skip" link, Fitts-distant from primary), the win screen is bypassed and the feature-intro still shows. No new backend command if the existing delivered-text event can be observed by the frontend; otherwise a minimal read-only command exposes the last transcription word-count/duration (decision §10).
 - **Persistence:** an `onboarding_completed: bool` setting (default `false`) gates the flow so it shows once. (Currently inferred from "any model available"; the explicit flag is more correct and lets us show the new steps even if a model is already present.) Standard settings plumbing (§2).
+- **Material:** each onboarding step renders on a centered **glass panel** (§3.4.2) over the `AmbientBackground`; the single primary action per step is a **metallic-gold button** (§3.4.1, Von Restorff isolation).
 
 ### 6.3 Copy & i18n
 
@@ -184,7 +220,7 @@ All new strings under an extended `onboarding.*` namespace in `en/translation.js
 
 ## 7. Workstream C — Settings UX
 
-Keep the existing 7-tab structure (General, Models, Advanced, History, Post-Processing, Debug, About). Add discoverability without restructuring.
+Keep the existing 7-tab structure (General, Models, Advanced, History, Post-Processing, Debug, About). Add discoverability without restructuring. The settings **sidebar** and each **`SettingsGroup` card** render as **glass** (§3.4.2) over the `AmbientBackground`; individual rows stay solid for legibility/perf.
 
 ### 7.1 Settings search
 
@@ -208,6 +244,7 @@ Keep the existing 7-tab structure (General, Models, Advanced, History, Post-Proc
 - **Frontend:** `tsc` + ESLint (incl. `i18next/no-literal-string`) clean on every task. New components are presentational and verified by build + manual.
 - **Visual/manual (Windows + the user's machine):** logo preview sign-off; both light/dark themes; onboarding full run (fresh data dir) incl. permission primers, try-it-now peak, win screen, feature intro; settings search + reset.
 - **Zero-network check:** confirm no font/icon/asset loads from a network origin (all local).
+- **Glass/material check (per-OS, manual):** verify `backdrop-filter` renders on WebView2 (Windows), WKWebView (macOS), and WebKitGTK (Linux); confirm the `@supports` fallback yields opaque-but-correct chrome where unsupported; confirm `prefers-reduced-motion` disables sheen + ambient drift; spot-check that no scrolling jank appears with glass + ambient layer active (perf guard, §3.4.2).
 - **CI:** 3-OS `cargo check` green before merge.
 
 The visual/onboarding pieces cannot be unit-tested meaningfully — the gate is compile + suite + lint + manual verification, consistent with prior milestones.
@@ -228,6 +265,7 @@ The visual/onboarding pieces cannot be unit-tested meaningfully — the gate is 
 1. **Rebrand depth:** full identity (new `identifier` + data dir); models/settings re-downloaded on the dev machine; **no migration**. Internal Rust crate name (`handy`/`handy_app_lib`) left unchanged (invisible; rename = churn/risk).
 2. **Logo:** Flow Mark — mind node (gold) + continuous waveform (teal) with a hidden M; preview-first sign-off gate (§4.3).
 3. **Palette:** gold primary (`#E0A53F`) + teal live (`#2DD4BF`), dark-first; the rest of the research palette as in §3.1.
+3a. **Material (user-directed):** the gold is expressed as a **reflective metallic gradient** (§3.4.1), and the UI uses **glassmorphism** on chrome surfaces (§3.4.2) over a required ambient background, with `@supports` fallback + a CPU-only performance guard.
 4. **Onboarding:** includes the try-it-now peak + quantified win (user opted in).
 5. **Updater URL:** if a MindFlow release feed does not yet exist, the updater is **pointed at the MindFlow repo releases path but tolerant of a missing feed** (the existing update-check already surfaces "no update"); it is not left pointing at `cjpais/Handy`. Final URL confirmed at implementation against the repo's release setup.
 6. **Try-it-now data:** prefer observing the existing delivered-text path from the frontend; add a minimal read-only command only if the event isn't already frontend-visible. Resolved during planning against the M1 delivery code.
