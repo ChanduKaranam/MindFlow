@@ -6,6 +6,7 @@ import { ShortcutInput } from "../ShortcutInput";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { OutputDeviceSelector } from "../OutputDeviceSelector";
 import { RecordingModeSelector } from "../RecordingModeSelector";
+import { type RecordingMode } from "@/bindings";
 import { AudioFeedback } from "../AudioFeedback";
 import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
@@ -17,7 +18,7 @@ import { ModelSettingsCard } from "./ModelSettingsCard";
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
   const { audioFeedbackEnabled, getSetting } = useSettings();
-  const recordingMode = getSetting("recording_mode");
+  const recordingMode = getSetting("recording_mode") as RecordingMode | undefined;
   const isLinux = type() === "linux";
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">

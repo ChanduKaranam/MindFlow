@@ -93,9 +93,11 @@ impl TranscriptionCoordinator {
                                 Decision::Stop => {
                                     // For a StopKeyPress the active binding lives in `stage`, not `binding_id`.
                                     let active = match &stage { Stage::Recording(id) => id.clone(), _ => binding_id.clone() };
-                                    if mode == RecordingMode::HandsFree {
-                                        crate::shortcut::unregister_handsfree_stop_shortcut(&app);
-                                    }
+                                    // Unconditionally unregister the hands-free Enter shortcut on every stop.
+                                    // It is idempotent (a no-op when not registered), and gating on the
+                                    // current mode leaked the Enter capture if the user changed recording mode
+                                    // mid-recording and then stopped via the activation hotkey.
+                                    crate::shortcut::unregister_handsfree_stop_shortcut(&app);
                                     stop(&app, &mut stage, &active, &hotkey_string);
                                 }
                                 Decision::Ignore => {}
@@ -117,6 +119,11 @@ impl TranscriptionCoordinator {
                         }
                     }
                 }
+                // On normal app shutdown the OS releases all global shortcuts as part of
+                // process teardown, so the hands-free Enter shortcut is implicitly freed
+                // here. A future refactor adding in-process graceful shutdown must call
+                // unregister_handsfree_stop_shortcut() explicitly to preserve the
+                // "Enter never lingers after recording stops" invariant.
                 debug!("Transcription coordinator exited");
             }));
             if let Err(e) = result {
@@ -238,6 +245,10 @@ pub fn decide(mode: RecordingMode, stage: StageKind, event: InputEvent) -> Decis
         (Toggle, RecordingThis, ActivationPress) => Stop,
 
         // Hands-free: Enter stops whatever is recording; activation press is the safety stop.
+        // Note: in practice a StopKeyPress always has binding_id == "hands_free_stop", which
+        // never matches the active recording's id, so the coordinator classifies it as
+        // RecordingOther rather than RecordingThis. This arm is defensive symmetry — it
+        // ensures Stop is returned even in any future path where the ids could match.
         (HandsFree, RecordingThis, StopKeyPress) => Stop,
         (HandsFree, RecordingOther, StopKeyPress) => Stop,
         (HandsFree, RecordingThis, ActivationPress) => Stop,
