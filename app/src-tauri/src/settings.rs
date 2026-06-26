@@ -375,6 +375,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub replacements: Vec<Replacement>,
     #[serde(default)]
+    pub snippets: Vec<Replacement>,
+    #[serde(default)]
     pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
     pub word_correction_threshold: f64,
@@ -811,6 +813,7 @@ pub fn get_default_settings() -> AppSettings {
         log_level: default_log_level(),
         custom_words: Vec::new(),
         replacements: Vec::new(),
+        snippets: Vec::new(),
         model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
@@ -986,6 +989,12 @@ mod tests {
     fn replacements_default_empty() {
         let settings = get_default_settings();
         assert!(settings.replacements.is_empty());
+    }
+
+    #[test]
+    fn snippets_default_empty() {
+        let settings = get_default_settings();
+        assert!(settings.snippets.is_empty());
     }
 
     #[test]
