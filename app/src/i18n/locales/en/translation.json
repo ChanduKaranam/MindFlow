@@ -261,6 +261,7 @@
         "app": "App",
         "output": "Output",
         "transcription": "Transcription",
+        "dictionary": "Dictionary",
         "history": "History",
         "experimental": "Experimental"
       },
@@ -373,6 +374,15 @@
         "add": "Add",
         "remove": "Remove {{word}}",
         "duplicate": "\"{{word}}\" already exists"
+      },
+      "replacements": {
+        "title": "Replacements",
+        "description": "Always replace a misheard word or phrase with the exact text you want.",
+        "fromPlaceholder": "Heard (e.g. poor nachem darao)",
+        "toPlaceholder": "Replace with (e.g. Purna Chandra Rao)",
+        "add": "Add",
+        "remove": "Remove",
+        "duplicate": "A replacement for \"{{word}}\" already exists"
       }
     },
     "postProcessing": {
