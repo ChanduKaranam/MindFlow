@@ -119,6 +119,15 @@
         "requestFailed": "Failed to request permission. Please try again."
       }
     },
+    "tryit": {
+      "title": "Try it now",
+      "prompt": "Hold {{hotkey}} and read this line aloud.",
+      "sample": "MindFlow turns my voice into text instantly.",
+      "listening": "Listening…",
+      "win": "You typed {{words}} words in {{seconds}}s — about {{factor}}× faster than typing.",
+      "continue": "Continue",
+      "skip": "Skip"
+    },
     "stepper": {
       "label": "Step {{current}} of {{total}}"
     },
