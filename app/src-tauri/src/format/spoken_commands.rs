@@ -139,13 +139,83 @@ fn apply_capitalization(text: &str) -> String {
     join_with_smart_spacing(&out)
 }
 
+fn number_word_value(w: &str) -> Option<u64> {
+    Some(match w {
+        "zero" => 0, "one" => 1, "two" => 2, "three" => 3, "four" => 4,
+        "five" => 5, "six" => 6, "seven" => 7, "eight" => 8, "nine" => 9,
+        "ten" => 10, "eleven" => 11, "twelve" => 12, "thirteen" => 13,
+        "fourteen" => 14, "fifteen" => 15, "sixteen" => 16, "seventeen" => 17,
+        "eighteen" => 18, "nineteen" => 19, "twenty" => 20, "thirty" => 30,
+        "forty" => 40, "fifty" => 50, "sixty" => 60, "seventy" => 70,
+        "eighty" => 80, "ninety" => 90, "hundred" => 100, "thousand" => 1000,
+        _ => return None,
+    })
+}
+
+/// Convert a run of >=2 number-words. Single digits (0-9) only -> concatenate as a
+/// digit string ("one two three" -> "123"). Otherwise compose ("twenty five" -> "25",
+/// "three hundred" -> "300").
+fn convert_number_run(words: &[String]) -> String {
+    let vals: Vec<u64> = words
+        .iter()
+        .map(|w| number_word_value(&w.to_lowercase()).unwrap())
+        .collect();
+    if vals.iter().all(|v| *v <= 9) {
+        return vals.iter().map(|v| v.to_string()).collect();
+    }
+    // Compose: standard tens+ones / hundred / thousand accumulation.
+    let mut total: u64 = 0;
+    let mut current: u64 = 0;
+    for v in vals {
+        if v == 100 {
+            current = if current == 0 { 100 } else { current * 100 };
+        } else if v == 1000 {
+            total += if current == 0 { 1000 } else { current * 1000 };
+            current = 0;
+        } else {
+            current += v;
+        }
+    }
+    (total + current).to_string()
+}
+
+fn apply_numbers(text: &str) -> String {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        if number_word_value(&strip_edges(tokens[i]).to_lowercase()).is_some() {
+            let start = i;
+            let mut run: Vec<String> = Vec::new();
+            while i < tokens.len()
+                && number_word_value(&strip_edges(tokens[i]).to_lowercase()).is_some()
+            {
+                run.push(strip_edges(tokens[i]).to_lowercase());
+                i += 1;
+            }
+            if run.len() >= 2 {
+                out.push(convert_number_run(&run));
+            } else {
+                // Single number-word: leave the ORIGINAL token untouched.
+                out.push(tokens[start].to_string());
+            }
+        } else {
+            out.push(tokens[i].to_string());
+            i += 1;
+        }
+    }
+    join_with_smart_spacing(&out)
+}
+
 pub fn apply_spoken_commands(text: &str, config: &SpokenCommandsConfig) -> String {
     if !config.enabled {
         return text.to_string();
     }
     let mut out = apply_punctuation(text);
     out = apply_capitalization(&out);
-    // (Task 8) if config.number_conversion { out = apply_numbers(&out); }
+    if config.number_conversion {
+        out = apply_numbers(&out);
+    }
     out = apply_newlines(&out);
     out
 }
@@ -276,5 +346,32 @@ mod tests {
     fn caps_on_off_uppercases_region() {
         let out = apply_spoken_commands("say caps on hello world caps off now", &cfg(true, false));
         assert_eq!(out, "say HELLO WORLD now");
+    }
+
+    // --- Task 8: number-to-digit conversion (opt-in) ---
+
+    #[test]
+    fn digit_sequence_concatenates() {
+        let out = apply_spoken_commands("call one two three", &cfg(true, true));
+        assert_eq!(out, "call 123");
+    }
+
+    #[test]
+    fn composed_number_tens_and_ones() {
+        let out = apply_spoken_commands("age twenty five", &cfg(true, true));
+        assert_eq!(out, "age 25");
+    }
+
+    #[test]
+    fn isolated_number_word_in_prose_untouched() {
+        // Single number-word, not a run -> left alone.
+        let out = apply_spoken_commands("I have one idea", &cfg(true, true));
+        assert_eq!(out, "I have one idea");
+    }
+
+    #[test]
+    fn numbers_off_leaves_words() {
+        let out = apply_spoken_commands("call one two three", &cfg(true, false));
+        assert_eq!(out, "call one two three");
     }
 }
