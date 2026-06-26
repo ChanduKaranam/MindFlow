@@ -468,6 +468,51 @@ impl AudioRecordingManager {
         Ok(())
     }
 
+    /// Drop the cached recorder and rebuild it from current settings, so changes to
+    /// construction-time audio settings (vad_threshold, noise_suppression) take effect
+    /// without an app restart. Safe-guarded:
+    ///   - Never rebuilds while recording — dropping the AudioRecorder would stop the
+    ///     live cpal stream and lose the in-flight audio. The change then applies the
+    ///     next time the recorder is rebuilt (e.g. a later settings change while idle).
+    ///   - If the mic stream is open (always-on mode), it is stopped and restarted
+    ///     around the rebuild, mirroring `update_selected_device`.
+    ///
+    /// We intentionally release the `state` guard after the idle check rather than
+    /// holding it across the rebuild: `preload_vad` loads the Silero (and possibly
+    /// GTCRN) ONNX models, which can take hundreds of ms, and holding `state` that long
+    /// would stall a concurrent record-hotkey for the whole window. The cost is a tiny
+    /// race — if a record starts between the idle check and the drop, the worst case is
+    /// one lost/partial clip (`stop_recording` is `Some`-guarded; no panic or UB), self-
+    /// correcting on the next record. The call site is a user-driven settings change, so
+    /// this is near-impossible in practice and strictly safer than `update_selected_device`
+    /// (which has no idle guard at all).
+    pub fn rebuild_recorder(&self) -> Result<(), anyhow::Error> {
+        // Snapshot state without holding the guards across the helper calls below
+        // (stop/start_microphone_stream lock `is_open` themselves).
+        let is_idle = matches!(*self.state.lock().unwrap(), RecordingState::Idle);
+        if !is_idle {
+            debug!("rebuild_recorder skipped: recording in progress");
+            return Ok(());
+        }
+        let was_open = *self.is_open.lock().unwrap();
+
+        if was_open {
+            self.close_generation.fetch_add(1, Ordering::SeqCst);
+            self.stop_microphone_stream();
+        }
+
+        // Drop the cached recorder so preload_vad rebuilds it with current settings.
+        *self.recorder.lock().unwrap() = None;
+        self.preload_vad()?;
+
+        if was_open {
+            self.start_microphone_stream()?;
+        }
+
+        debug!("recorder rebuilt from current settings");
+        Ok(())
+    }
+
     pub fn stop_recording(&self, binding_id: &str) -> Option<Vec<f32>> {
         let mut state = self.state.lock().unwrap();
 
