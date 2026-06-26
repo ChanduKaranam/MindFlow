@@ -658,6 +658,18 @@ pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), Str
 
 #[tauri::command]
 #[specta::specta]
+pub fn update_replacements(
+    app: AppHandle,
+    replacements: Vec<crate::replace::Replacement>,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.replacements = replacements;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_word_correction_threshold_setting(
     app: AppHandle,
     threshold: f64,
