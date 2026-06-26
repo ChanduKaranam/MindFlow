@@ -131,6 +131,22 @@
         "noCloud": "No cloud"
       },
       "cta": "Get started"
+    },
+    "primer": {
+      "microphone": {
+        "title": "Enable your microphone",
+        "body": "MindFlow needs your microphone so you can dictate into any app. Audio is processed on your device and never uploaded.",
+        "allow": "Allow microphone"
+      },
+      "accessibility": {
+        "title": "Enable Accessibility access",
+        "body": "MindFlow needs Accessibility access so it can type transcribed text into other apps.",
+        "steps": "Open System Settings → Privacy & Security → Accessibility, then enable MindFlow.",
+        "allow": "Open System Settings",
+        "stillOff": "Still off? Toggle MindFlow off and on again in the Accessibility list, then return here."
+      },
+      "skip": "Skip for now",
+      "granted": "Granted"
     }
   },
   "modelSelector": {
