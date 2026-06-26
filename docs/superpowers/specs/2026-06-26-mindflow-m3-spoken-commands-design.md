@@ -104,11 +104,19 @@ Indicative trigger → output. Final phrasings/coverage are pinned during implem
 | Category | Trigger phrases (examples) | Output |
 |---|---|---|
 | **Newlines** | "new line"; "new paragraph" / "next paragraph" | `\n`; `\n\n` |
-| **Punctuation** | "period" / "full stop"; "comma"; "question mark"; "exclamation mark" / "exclamation point"; "colon"; "semicolon"; "open paren" / "open parenthesis"; "close paren" / "close parenthesis"; "dash" / "hyphen" | `.` `,` `?` `!` `:` `;` `(` `)` `-` |
+| **Punctuation** | "question mark"; "exclamation mark" / "exclamation point"; "semicolon"; "open paren" / "open parenthesis"; "close paren" / "close parenthesis" | `?` `!` `;` `(` `)` |
 | **Capitalization** | "all caps WORD" (next word); "caps on" / "caps off" (region) | uppercased text |
 | **Numbers** (opt-in) | "twenty five" → 25; digit runs "one two three" → 123 | digits |
 
 Tables live as static data keyed for future i18n; only the English table is populated in M3.
+
+**Punctuation trigger set was trimmed after the STT probe (2026-06-26).** The high-risk
+common words — "period" / "full stop", "comma", "colon", "dash" / "hyphen" — were
+**removed**. Two probe findings drove this: (1) the STT already inserts these marks itself
+(saw it emit `"Hello, ... world."` unprompted), so the commands were largely redundant; and
+(2) aggressive matching of these everyday words corrupted ordinary dictation — e.g. "give me
+a period of time" → "give me a. of time". Only phrases that are both hard for the STT to
+produce on its own and unlikely to occur as literal prose are kept.
 
 ## 5. Matching strategy (hybrid per category)
 

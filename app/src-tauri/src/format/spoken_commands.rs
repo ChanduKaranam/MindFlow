@@ -4,8 +4,14 @@ pub struct SpokenCommandsConfig {
 }
 
 /// Punctuation triggers, two-word phrases listed so they are matched before one-word.
+///
+/// Deliberately limited to phrases that are (a) unlikely to occur as literal prose
+/// words and (b) hard for the STT to produce on its own. The high-risk common words
+/// — "period", "full stop", "comma", "colon", "dash", "hyphen" — were removed: the
+/// STT already inserts those marks itself, and matching them aggressively corrupted
+/// ordinary dictation (e.g. "a period of time" -> "a. of time"). See the M3 design
+/// spec (punctuation table) and the STT probe findings.
 const PUNCT_TRIGGERS: &[(&str, &str)] = &[
-    ("full stop", "."),
     ("question mark", "?"),
     ("exclamation mark", "!"),
     ("exclamation point", "!"),
@@ -13,12 +19,7 @@ const PUNCT_TRIGGERS: &[(&str, &str)] = &[
     ("open parenthesis", "("),
     ("close paren", ")"),
     ("close parenthesis", ")"),
-    ("period", "."),
-    ("comma", ","),
-    ("colon", ":"),
     ("semicolon", ";"),
-    ("hyphen", "-"),
-    ("dash", "-"),
 ];
 
 /// Symbols that attach to the previous token with no leading space.
@@ -68,7 +69,7 @@ fn apply_punctuation(text: &str) -> String {
 }
 
 /// Append a punctuation symbol, collapsing an immediately-preceding identical
-/// symbol (idempotency: "done." + "period" must not yield "done..").
+/// symbol (idempotency: "really?" + "question mark" must not yield "really??").
 fn push_symbol(out: &mut Vec<String>, sym: &str) {
     if let Some(last) = out.last() {
         if last.ends_with(sym) && ATTACH_LEFT.contains(&sym) {
@@ -322,9 +323,17 @@ mod tests {
     // --- Task 6: punctuation spoken-commands ---
 
     #[test]
-    fn comma_word_becomes_symbol_attached() {
-        let out = apply_spoken_commands("hello comma world", &cfg(true, false));
-        assert_eq!(out, "hello, world");
+    fn dropped_punctuation_words_left_as_prose() {
+        // High-risk common words are intentionally NOT triggers: the STT already
+        // inserts these marks, and converting them corrupted ordinary dictation.
+        assert_eq!(
+            apply_spoken_commands("give me a period of time", &cfg(true, false)),
+            "give me a period of time"
+        );
+        assert_eq!(
+            apply_spoken_commands("hello comma world", &cfg(true, false)),
+            "hello comma world"
+        );
     }
 
     #[test]
@@ -341,9 +350,9 @@ mod tests {
 
     #[test]
     fn punctuation_is_idempotent_no_double() {
-        // STT already attached the period; saying "period" must not double it.
-        let out = apply_spoken_commands("done. period", &cfg(true, false));
-        assert_eq!(out, "done.");
+        // STT already attached the "?"; saying "question mark" must not double it.
+        let out = apply_spoken_commands("really? question mark", &cfg(true, false));
+        assert_eq!(out, "really?");
     }
 
     // --- Task 7: capitalization spoken-commands ---
