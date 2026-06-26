@@ -154,11 +154,17 @@ The Replacements/Snippets editors follow the existing settings-component idioms
 | Case | Handling |
 |---|---|
 | Empty / whitespace `from` | Rule ignored (engine skips it) |
-| Duplicate `from` | Last rule wins (stable order); UI may warn |
+| Duplicate `from` | **First rule wins** — rules apply as sequential whole-string passes, so the first matching rule consumes the occurrences and a later duplicate finds nothing. Both editors also block adding a case-insensitive duplicate `from`, so this only matters for hand-edited settings files. |
 | `to` empty | Allowed (acts as a deletion of `from`) |
 | Dangerous chars in input | Sanitized in the UI like Custom Words (`<>"'&` stripped) |
 | Old settings file lacking keys | serde defaults to empty lists — loads unchanged |
 | No rules configured | Pass is a no-op (returns input) |
+
+**Known limitation:** a `from` is tokenized on whitespace and matched against maximal
+alphanumeric word-spans, so a `from` containing in-word punctuation ("O'Brien", "node.js",
+"jean-luc") will never match and the rule is a silent no-op. This is within the spec's
+plain-phrase/alphanumeric-boundary scope; the *replacement* (`to`) is unrestricted. A future
+UI hint could warn on such `from` values.
 
 Zero network in any path.
 
