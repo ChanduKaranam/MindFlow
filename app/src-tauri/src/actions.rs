@@ -382,6 +382,10 @@ pub(crate) async fn process_transcription_output(
     };
     final_text = crate::format::apply_spoken_commands(&final_text, &spoken_cfg);
 
+    // M4: user-defined exact replacements (dictionary fixes for stubborn mishearings,
+    // proper nouns, abbreviations). Deterministic, CPU-only, no network.
+    final_text = crate::replace::apply_replacements(&final_text, &settings.replacements);
+
     if post_process {
         if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
             post_processed_text = Some(processed_text.clone());
