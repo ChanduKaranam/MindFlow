@@ -118,6 +118,9 @@
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
       }
+    },
+    "stepper": {
+      "label": "Step {{current}} of {{total}}"
     }
   },
   "modelSelector": {
