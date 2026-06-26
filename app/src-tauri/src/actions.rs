@@ -374,6 +374,14 @@ pub(crate) async fn process_transcription_output(
         final_text = converted_text;
     }
 
+    // M3: deterministic, CPU-only spoken formatting commands (newlines, punctuation,
+    // capitalization, opt-in numbers). Gated by its own settings; no network, no LLM.
+    let spoken_cfg = crate::format::SpokenCommandsConfig {
+        enabled: settings.spoken_commands_enabled,
+        number_conversion: settings.number_conversion_enabled,
+    };
+    final_text = crate::format::apply_spoken_commands(&final_text, &spoken_cfg);
+
     if post_process {
         if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
             post_processed_text = Some(processed_text.clone());
