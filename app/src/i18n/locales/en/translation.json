@@ -156,6 +156,26 @@
       },
       "skip": "Skip for now",
       "granted": "Granted"
+    },
+    "features": {
+      "title": "What's included",
+      "handsFree": {
+        "title": "Hands-free mode",
+        "desc": "Toggle dictation on and keep talking — no key to hold. Find it in General settings."
+      },
+      "spokenCommands": {
+        "title": "Spoken commands",
+        "desc": "Say \"new line\", \"question mark\" and more to format as you speak. Toggle in General settings."
+      },
+      "dictionary": {
+        "title": "Dictionary",
+        "desc": "Teach MindFlow names and fix misheard words with custom words, replacements and snippets. In Advanced settings."
+      },
+      "noiseSuppression": {
+        "title": "Noise suppression",
+        "desc": "Clean up background noise before transcription. Toggle in General settings."
+      },
+      "cta": "Start using MindFlow"
     }
   },
   "modelSelector": {
