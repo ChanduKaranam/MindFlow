@@ -1,28 +1,102 @@
 @import "tailwindcss";
 
+/* ─── Vendored fonts ──────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/GeistMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./assets/fonts/Fraunces-Light.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Fraunces-Regular.woff2") format("woff2");
+}
+
+/* ─── Design tokens (Tailwind v4 @theme) — light-mode defaults ───────────── */
+
 @theme {
-  /* Design tokens */
-  --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-background-ui: #da5893;
+  /* Colors — light mode (defaults; dark overridden in @media below) */
+  --color-background: #F7F7F8;
+  --color-surface: #FFFFFF;
+  --color-surface-high: #F0F0F2;
+  --color-text: #18181B;
+  --color-text-secondary: #52525B;
+  --color-border: #E4E4E7;
+  --color-accent: #E0A53F;
+  --color-accent-hover: #EBB54E;
+  --color-accent-pressed: #C68A2E;
+  --color-recording: #C68A2E;
+  --color-privacy: #059669;
+  --color-danger: #DC2626;
+  --color-on-accent: #1A1305;
+
+  /* Legacy aliases — kept until Task 5 retires them */
+  --color-mid-gray: var(--color-text-secondary);
+  --color-background-ui: var(--color-accent);
   --color-logo-primary: #faa2ca;
   --color-logo-stroke: #382731;
   --color-text-stroke: #f6f6f6;
-  --color-mid-gray: #808080;
+
+  /* Metallic-gold gradient tokens (§3.4.1) */
+  --gradient-gold: linear-gradient(135deg, #A9760F 0%, #E0A53F 28%, #FBE7A1 50%, #E0A53F 72%, #A9760F 100%);
+  --gradient-gold-hover: linear-gradient(135deg, #B98010 0%, #EBB54E 28%, #FFF1C2 50%, #EBB54E 72%, #B98010 100%);
+  --gold-edge-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --gold-edge-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.30);
+
+  /* Glass tokens — light defaults (§3.4.2) */
+  --glass-bg: rgba(255, 255, 255, 0.60);
+  --glass-blur: blur(18px) saturate(150%);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
+/* ─── :root — typography + derived tokens ────────────────────────────────── */
+
 :root {
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
   /* Typography */
   font-size: 15px;
   line-height: 24px;
   font-weight: 400;
-
-  /* Colors - Light Theme */
-  /* --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-logo-primary: #FAA2CA;
-  --color-logo-stroke: #382731;
-  --color-text-stroke: #f6f6f6; */
 
   /* Typography settings */
   font-synthesis: none;
@@ -57,17 +131,43 @@
   text-align: center;
 }
 
+/* ─── Dark mode overrides ─────────────────────────────────────────────────── */
+
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Colors - Dark Theme */
-    --color-text: #fbfbfb;
-    --color-background: #2c2b29;
+    /* Colors — dark theme (§3.1 dark table) */
+    --color-background: #121212;
+    --color-surface: #1C1C22;
+    --color-surface-high: #26262E;
+    --color-text: #E6E6EA;
+    --color-text-secondary: #A1A1AA;
+    --color-border: #33333B;
+    --color-accent: #E0A53F;
+    --color-accent-hover: #EBB54E;
+    --color-accent-pressed: #C68A2E;
+    --color-recording: #F4CE6B;
+    --color-privacy: #34D399;
+    --color-danger: #F87171;
+    --color-on-accent: #121212;
+
+    /* Legacy aliases — refresh in dark context */
+    --color-mid-gray: var(--color-text-secondary);
+    --color-background-ui: var(--color-accent);
+    /* Restore dark overrides so the interim Handy logo stays visible until Task 4 */
     --color-logo-primary: #f28cbb;
     --color-logo-stroke: #fad1ed;
-    /* Just a bit darker than the (already dark) background, keeping its warm tint */
+
+    /* Glass tokens — dark (§3.4.2) */
+    --glass-bg: rgba(28, 28, 34, 0.55);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.10);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+    /* Log surface — just a bit darker than the already dark background */
     --color-log-surface: color-mix(in srgb, var(--color-background), black 15%);
   }
 }
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
 
 /* macOS - tint native overlay scrollbar thumb */
 :root[data-platform="macos"] {
@@ -97,6 +197,8 @@
 :root:not([data-platform="macos"]) ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
+
+/* ─── Legacy utility classes (kept until Task 5 retires them) ─────────────── */
 
 @layer utilities {
   .text-stroke {
