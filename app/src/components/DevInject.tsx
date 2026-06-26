@@ -1,3 +1,7 @@
+/* eslint-disable i18next/no-literal-string --
+   Dev-only injection harness, never imported in production builds. Its labels are
+   developer tooling, not user-facing product copy, so they are intentionally hard-coded
+   English and must NOT be added to the i18n locale files. */
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
