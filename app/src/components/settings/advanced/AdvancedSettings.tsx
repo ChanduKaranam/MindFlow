@@ -4,6 +4,7 @@ import { ShowOverlay } from "../ShowOverlay";
 import { ModelUnloadTimeoutSetting } from "../ModelUnloadTimeout";
 import { CustomWords } from "../CustomWords";
 import { ReplacementsEditor } from "../ReplacementsEditor";
+import { SnippetsEditor } from "../SnippetsEditor";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { StartHidden } from "../StartHidden";
 import { AutostartToggle } from "../AutostartToggle";
@@ -52,6 +53,7 @@ export const AdvancedSettings: React.FC = () => {
       <SettingsGroup title={t("settings.advanced.groups.dictionary")}>
         <CustomWords descriptionMode="tooltip" grouped />
         <ReplacementsEditor descriptionMode="tooltip" grouped />
+        <SnippetsEditor descriptionMode="tooltip" grouped />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.history")}>

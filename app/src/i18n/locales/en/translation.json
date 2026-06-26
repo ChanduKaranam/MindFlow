@@ -383,6 +383,15 @@
         "add": "Add",
         "remove": "Remove",
         "duplicate": "A replacement for \"{{word}}\" already exists"
+      },
+      "snippets": {
+        "title": "Snippets",
+        "description": "Say a short cue and have it expand to longer boilerplate text.",
+        "fromPlaceholder": "Spoken cue (e.g. my email)",
+        "toPlaceholder": "Expands to (e.g. you@example.com)",
+        "add": "Add",
+        "remove": "Remove",
+        "duplicate": "A snippet for \"{{word}}\" already exists"
       }
     },
     "postProcessing": {
