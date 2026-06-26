@@ -405,6 +405,10 @@ pub struct AppSettings {
     pub mute_while_recording: bool,
     #[serde(default)]
     pub append_trailing_space: bool,
+    #[serde(default = "default_spoken_commands_enabled")]
+    pub spoken_commands_enabled: bool,
+    #[serde(default)]
+    pub number_conversion_enabled: bool,
     #[serde(default = "default_app_language")]
     pub app_language: String,
     #[serde(default)]
@@ -662,6 +666,10 @@ fn default_noise_suppression() -> bool {
     true
 }
 
+fn default_spoken_commands_enabled() -> bool {
+    true
+}
+
 fn default_vad_threshold() -> f32 {
     // Silero v6's recommended operating point. Higher (less sensitive) than the
     // initial 0.4 — with no detection-gain in front of the model, a lower
@@ -816,6 +824,8 @@ pub fn get_default_settings() -> AppSettings {
         post_process_selected_prompt_id: None,
         mute_while_recording: false,
         append_trailing_space: false,
+        spoken_commands_enabled: true,
+        number_conversion_enabled: false,
         app_language: default_app_language(),
         experimental_enabled: false,
         lazy_stream_close: false,
@@ -973,6 +983,13 @@ mod tests {
         let settings = get_default_settings();
         assert!(!settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
+    }
+
+    #[test]
+    fn spoken_commands_default_on_numbers_off() {
+        let settings = get_default_settings();
+        assert!(settings.spoken_commands_enabled);
+        assert!(!settings.number_conversion_enabled);
     }
 
     #[test]
