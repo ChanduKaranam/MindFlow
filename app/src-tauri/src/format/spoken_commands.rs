@@ -100,12 +100,51 @@ const NEWLINE_TRIGGERS: &[(&str, &str)] = &[
     ("newline", "\n"),
 ];
 
+fn apply_capitalization(text: &str) -> String {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut caps_region = false;
+    let mut uppercase_next = false;
+    let mut i = 0;
+    while i < tokens.len() {
+        let low = strip_edges(tokens[i]).to_lowercase();
+        let low_next = tokens.get(i + 1).map(|t| strip_edges(t).to_lowercase());
+
+        if low == "all" && low_next.as_deref() == Some("caps") {
+            uppercase_next = true;
+            i += 2;
+            continue;
+        }
+        if low == "caps" && low_next.as_deref() == Some("on") {
+            caps_region = true;
+            i += 2;
+            continue;
+        }
+        if low == "caps" && low_next.as_deref() == Some("off") {
+            caps_region = false;
+            i += 2;
+            continue;
+        }
+
+        if uppercase_next {
+            out.push(tokens[i].to_uppercase());
+            uppercase_next = false;
+        } else if caps_region {
+            out.push(tokens[i].to_uppercase());
+        } else {
+            out.push(tokens[i].to_string());
+        }
+        i += 1;
+    }
+    join_with_smart_spacing(&out)
+}
+
 pub fn apply_spoken_commands(text: &str, config: &SpokenCommandsConfig) -> String {
     if !config.enabled {
         return text.to_string();
     }
     let mut out = apply_punctuation(text);
-    // (Task 7) out = apply_capitalization(&out);
+    out = apply_capitalization(&out);
     // (Task 8) if config.number_conversion { out = apply_numbers(&out); }
     out = apply_newlines(&out);
     out
@@ -223,5 +262,19 @@ mod tests {
         // STT already attached the period; saying "period" must not double it.
         let out = apply_spoken_commands("done. period", &cfg(true, false));
         assert_eq!(out, "done.");
+    }
+
+    // --- Task 7: capitalization spoken-commands ---
+
+    #[test]
+    fn all_caps_uppercases_next_word_only() {
+        let out = apply_spoken_commands("the all caps api is ready", &cfg(true, false));
+        assert_eq!(out, "the API is ready");
+    }
+
+    #[test]
+    fn caps_on_off_uppercases_region() {
+        let out = apply_spoken_commands("say caps on hello world caps off now", &cfg(true, false));
+        assert_eq!(out, "say HELLO WORLD now");
     }
 }
