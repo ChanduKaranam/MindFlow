@@ -20,8 +20,8 @@ pub fn init_shortcuts(app: &AppHandle) {
 
     // Register all default shortcuts, applying user customizations
     for (id, default_binding) in default_bindings {
-        if id == "cancel" {
-            continue; // Skip cancel shortcut, it will be registered dynamically
+        if id == "cancel" || id == "hands_free_stop" {
+            continue; // registered dynamically
         }
         // Skip post-processing shortcut when the feature is disabled
         if id == "transcribe_with_post_process" && !user_settings.post_process_enabled {
@@ -192,6 +192,49 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
             if let Some(cancel_binding) = get_settings(&app_clone).bindings.get("cancel").cloned() {
                 // We ignore errors here as it might already be unregistered
                 let _ = unregister_shortcut(&app_clone, cancel_binding);
+            }
+        });
+    }
+}
+
+/// Register the hands-free stop shortcut (called when hands-free recording starts)
+pub fn register_handsfree_stop_shortcut(app: &AppHandle) {
+    // Disabled on Linux due to instability with dynamic shortcut registration
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        return;
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let app_clone = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Some(binding) = get_settings(&app_clone).bindings.get("hands_free_stop").cloned() {
+                if let Err(e) = register_shortcut(&app_clone, binding) {
+                    error!("Failed to register hands_free_stop shortcut: {}", e);
+                }
+            }
+        });
+    }
+}
+
+/// Unregister the hands-free stop shortcut (called when hands-free recording stops)
+pub fn unregister_handsfree_stop_shortcut(app: &AppHandle) {
+    // Disabled on Linux due to instability with dynamic shortcut registration
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        return;
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let app_clone = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Some(binding) = get_settings(&app_clone).bindings.get("hands_free_stop").cloned() {
+                // We ignore errors here as it might already be unregistered
+                let _ = unregister_shortcut(&app_clone, binding);
             }
         });
     }
