@@ -491,9 +491,9 @@ fn initialize_handy_keys_with_rollback(app: &AppHandle) -> Result<bool, String> 
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn change_recording_mode_setting(app: AppHandle, mode: RecordingMode) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.recording_mode = if enabled { RecordingMode::Hold } else { RecordingMode::Toggle };
+    settings.recording_mode = mode;
     settings::write_settings(&app, settings);
     Ok(())
 }
