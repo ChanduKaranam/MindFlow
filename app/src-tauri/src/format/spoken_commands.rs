@@ -22,6 +22,8 @@ const PUNCT_TRIGGERS: &[(&str, &str)] = &[
 ];
 
 /// Symbols that attach to the previous token with no leading space.
+/// Note: "-" (hyphen/dash) is intentionally NOT here, so "hello hyphen world" renders as
+/// "hello - world" (spaced), not "hello-world" — deliberate spec limitation.
 const ATTACH_LEFT: &[&str] = &[".", ",", "?", "!", ":", ";", ")"];
 
 fn strip_edges(token: &str) -> &str {
@@ -156,9 +158,10 @@ fn number_word_value(w: &str) -> Option<u64> {
 /// digit string ("one two three" -> "123"). Otherwise compose ("twenty five" -> "25",
 /// "three hundred" -> "300").
 fn convert_number_run(words: &[String]) -> String {
+    // Words are already lowercased by apply_numbers before being pushed into the run.
     let vals: Vec<u64> = words
         .iter()
-        .map(|w| number_word_value(&w.to_lowercase()).unwrap())
+        .map(|w| number_word_value(w).unwrap())
         .collect();
     if vals.iter().all(|v| *v <= 9) {
         return vals.iter().map(|v| v.to_string()).collect();
@@ -194,9 +197,18 @@ fn apply_numbers(text: &str) -> String {
                 i += 1;
             }
             if run.len() >= 2 {
-                out.push(convert_number_run(&run));
+                // Re-attach punctuation that bordered the run (e.g. "twenty five." → "25.").
+                // tokens[start] is the first original token; tokens[i-1] is the last.
+                let first = tokens[start];
+                let last = tokens[i - 1];
+                let is_edge = |c: char| ".,?!:;()".contains(c);
+                let lead_len = first.len() - first.trim_start_matches(is_edge).len();
+                let trail_start = last.trim_end_matches(is_edge).len();
+                let lead = &first[..lead_len];
+                let trail = &last[trail_start..];
+                out.push(format!("{}{}{}", lead, convert_number_run(&run), trail));
             } else {
-                // Single number-word: leave the ORIGINAL token untouched.
+                // Single number-word: leave the ORIGINAL token untouched (punctuation preserved).
                 out.push(tokens[start].to_string());
             }
         } else {
@@ -373,5 +385,32 @@ mod tests {
     fn numbers_off_leaves_words() {
         let out = apply_spoken_commands("call one two three", &cfg(true, false));
         assert_eq!(out, "call one two three");
+    }
+
+    // Fix 1: number run must preserve boundary punctuation
+    #[test]
+    fn number_run_preserves_trailing_period() {
+        let out = apply_spoken_commands("I am twenty five.", &cfg(true, true));
+        assert_eq!(out, "I am 25.");
+    }
+
+    #[test]
+    fn number_run_trailing_period_keeps_newline_pass_working() {
+        // The preserved period must let a following standalone "new paragraph" still fire.
+        let out = apply_spoken_commands("I am twenty five. New paragraph. Done.", &cfg(true, true));
+        assert_eq!(out, "I am 25.\n\nDone.");
+    }
+
+    // Fix 2: coverage for "next paragraph" and single-word "newline" triggers
+    #[test]
+    fn standalone_next_paragraph_becomes_double_newline() {
+        let out = apply_spoken_commands("First. Next paragraph. Second.", &cfg(true, false));
+        assert_eq!(out, "First.\n\nSecond.");
+    }
+
+    #[test]
+    fn standalone_newline_single_word_becomes_single_newline() {
+        let out = apply_spoken_commands("First. Newline. Second.", &cfg(true, false));
+        assert_eq!(out, "First.\nSecond.");
     }
 }
