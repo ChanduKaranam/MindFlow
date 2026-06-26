@@ -215,3 +215,122 @@
   stroke: var(--color-logo-stroke);
   stroke-width: 1;
 }
+
+/* ─── Material utilities (Task 3) ────────────────────────────────────────── */
+
+/* Glassmorphism surface */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Opaque fallback when backdrop-filter is unsupported (WKWebView / WebKitGTK) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--color-surface);
+  }
+}
+
+/* Metallic gold button fill */
+.btn-gold {
+  background: var(--gradient-gold);
+  color: var(--color-on-accent);
+  box-shadow: var(--gold-edge-highlight), var(--gold-edge-shadow);
+}
+
+.btn-gold:hover {
+  background: var(--gradient-gold-hover);
+}
+
+/* Gradient-clipped gold text */
+.gold-text {
+  background: var(--gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ─── Gold sheen sweep (hover, motion-safe only) ─────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.30) 50%,
+      transparent 65%
+    );
+    transform: translateX(-150%);
+    pointer-events: none;
+  }
+
+  .sheen:hover::after {
+    transform: translateX(150%);
+    transition: transform 600ms ease-out;
+  }
+}
+
+/* ─── Ambient glow keyframes (warm-gold drift, motion-safe only) ─────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ambient-drift-1 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    50% {
+      transform: translate(8%, -6%) scale(1.1);
+    }
+  }
+
+  @keyframes ambient-drift-2 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    40% {
+      transform: translate(-5%, 8%) scale(1.05);
+    }
+    80% {
+      transform: translate(6%, -4%) scale(0.92);
+    }
+  }
+
+  @keyframes ambient-drift-3 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    35% {
+      transform: translate(-7%, -5%) scale(1.08);
+    }
+    70% {
+      transform: translate(4%, 7%) scale(0.95);
+    }
+  }
+
+  /* will-change lives here (motion-safe only) so reduced-motion systems
+     don't allocate compositor layers for animations that never run. */
+  .ambient-blob-1 {
+    animation: ambient-drift-1 18s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .ambient-blob-2 {
+    animation: ambient-drift-2 22s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .ambient-blob-3 {
+    animation: ambient-drift-3 26s ease-in-out infinite;
+    will-change: transform;
+  }
+}
