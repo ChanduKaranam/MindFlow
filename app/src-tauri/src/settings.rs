@@ -443,6 +443,8 @@ pub struct AppSettings {
     pub vad_threshold: f32,
     #[serde(default = "default_noise_suppression")]
     pub noise_suppression: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 fn default_model() -> String {
@@ -848,6 +850,7 @@ pub fn get_default_settings() -> AppSettings {
         extra_recording_buffer_ms: 0,
         vad_threshold: default_vad_threshold(),
         noise_suppression: default_noise_suppression(),
+        onboarding_completed: false,
     }
 }
 
@@ -984,6 +987,11 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn onboarding_completed_defaults_false() {
+        assert!(!get_default_settings().onboarding_completed);
+    }
 
     #[test]
     fn replacements_default_empty() {

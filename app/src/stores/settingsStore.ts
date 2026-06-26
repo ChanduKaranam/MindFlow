@@ -166,6 +166,8 @@ const settingUpdaters: {
     commands.changeNoiseSuppressionSetting(value as boolean),
   vad_threshold: (value) =>
     commands.changeVadThresholdSetting(value as number),
+  onboarding_completed: (value) =>
+    commands.setOnboardingCompleted(value as boolean),
 };
 
 export const useSettingsStore = create<SettingsStore>()(

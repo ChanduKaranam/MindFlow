@@ -405,6 +405,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::get_available_accelerators,
             shortcut::change_noise_suppression_setting,
             shortcut::change_vad_threshold_setting,
+            shortcut::set_onboarding_completed,
             shortcut::handy_keys::start_handy_keys_recording,
             shortcut::handy_keys::stop_handy_keys_recording,
             trigger_update_check,

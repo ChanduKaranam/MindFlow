@@ -1229,3 +1229,12 @@ pub fn change_vad_threshold_setting(app: AppHandle, threshold: f32) -> Result<()
         .map_err(|e| format!("Failed to rebuild recorder: {e}"))?;
     Ok(())
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_onboarding_completed(app: AppHandle, completed: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.onboarding_completed = completed;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
