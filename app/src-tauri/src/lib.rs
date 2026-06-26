@@ -7,6 +7,7 @@ pub mod audio_toolkit;
 pub mod cli;
 mod clipboard;
 mod commands;
+mod format;
 mod helpers;
 mod input;
 mod llm_client;
@@ -386,6 +387,8 @@ pub fn run(cli_args: CliArgs) {
             shortcut::suspend_binding,
             shortcut::resume_binding,
             shortcut::change_mute_while_recording_setting,
+            shortcut::change_spoken_commands_setting,
+            shortcut::change_number_conversion_setting,
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
             shortcut::change_app_language_setting,

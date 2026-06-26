@@ -135,6 +135,10 @@ const settingUpdaters: {
     commands.setPostProcessSelectedPrompt(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
+  spoken_commands_enabled: (value) =>
+    commands.changeSpokenCommandsSetting(value as boolean),
+  number_conversion_enabled: (value) =>
+    commands.changeNumberConversionSetting(value as boolean),
   append_trailing_space: (value) =>
     commands.changeAppendTrailingSpaceSetting(value as boolean),
   log_level: (value) => commands.setLogLevel(value as any),
