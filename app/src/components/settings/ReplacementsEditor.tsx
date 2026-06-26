@@ -71,6 +71,7 @@ export const ReplacementsEditor: React.FC<ReplacementsEditorProps> = React.memo(
               )}
               variant="compact"
               disabled={isUpdating("replacements")}
+              onKeyDown={handleKeyDown}
             />
             <Input
               type="text"
@@ -102,7 +103,7 @@ export const ReplacementsEditor: React.FC<ReplacementsEditorProps> = React.memo(
                   </span>
                   <Button
                     onClick={() => handleRemove(i)}
-                    aria-label={t("settings.advanced.replacements.remove")}
+                    aria-label={t("settings.advanced.replacements.remove", { word: r.from })}
                     variant="secondary"
                     size="sm"
                     disabled={isUpdating("replacements")}

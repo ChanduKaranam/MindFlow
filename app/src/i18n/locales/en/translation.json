@@ -381,7 +381,7 @@
         "fromPlaceholder": "Heard (e.g. poor nachem darao)",
         "toPlaceholder": "Replace with (e.g. Purna Chandra Rao)",
         "add": "Add",
-        "remove": "Remove",
+        "remove": "Remove {{word}}",
         "duplicate": "A replacement for \"{{word}}\" already exists"
       },
       "snippets": {
@@ -390,7 +390,7 @@
         "fromPlaceholder": "Spoken cue (e.g. my email)",
         "toPlaceholder": "Expands to (e.g. you@example.com)",
         "add": "Add",
-        "remove": "Remove",
+        "remove": "Remove {{word}}",
         "duplicate": "A snippet for \"{{word}}\" already exists"
       }
     },

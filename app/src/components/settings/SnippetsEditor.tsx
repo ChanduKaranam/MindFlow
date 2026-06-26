@@ -67,6 +67,7 @@ export const SnippetsEditor: React.FC<SnippetsEditorProps> = React.memo(
               placeholder={t("settings.advanced.snippets.fromPlaceholder")}
               variant="compact"
               disabled={isUpdating("snippets")}
+              onKeyDown={handleKeyDown}
             />
             <Input
               type="text"
@@ -98,7 +99,7 @@ export const SnippetsEditor: React.FC<SnippetsEditorProps> = React.memo(
                   </span>
                   <Button
                     onClick={() => handleRemove(i)}
-                    aria-label={t("settings.advanced.snippets.remove")}
+                    aria-label={t("settings.advanced.snippets.remove", { word: r.from })}
                     variant="secondary"
                     size="sm"
                     disabled={isUpdating("snippets")}

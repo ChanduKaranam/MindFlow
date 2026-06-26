@@ -382,6 +382,8 @@ pub(crate) async fn process_transcription_output(
     };
     final_text = crate::format::apply_spoken_commands(&final_text, &spoken_cfg);
 
+    // Passes cascade: a rule's output is re-scanned by later rules, and snippets run on the
+    // replacements' output. Idempotent when a `to` does not re-introduce a matched `from`.
     // M4: user-defined exact replacements (dictionary fixes for stubborn mishearings,
     // proper nouns, abbreviations). Deterministic, CPU-only, no network.
     final_text = crate::replace::apply_replacements(&final_text, &settings.replacements);
