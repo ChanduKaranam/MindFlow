@@ -196,6 +196,14 @@
       "pushToTalk": {
         "label": "Push To Talk",
         "description": "Hold to record, release to stop"
+      },
+      "spokenCommands": {
+        "label": "Spoken formatting commands",
+        "description": "Turn spoken cues like \"new paragraph\" into actual formatting."
+      },
+      "numberConversion": {
+        "label": "Convert spoken numbers to digits",
+        "description": "Turn spoken number sequences like \"twenty five\" into digits. May affect prose."
       }
     },
     "models": {

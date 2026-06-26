@@ -10,6 +10,7 @@ import { AudioFeedback } from "../AudioFeedback";
 import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
+import { SpokenCommands } from "../SpokenCommands";
 import { MicSensitivitySlider } from "../MicSensitivitySlider";
 import { NoiseSuppression } from "../NoiseSuppression";
 import { ModelSettingsCard } from "./ModelSettingsCard";
@@ -28,6 +29,7 @@ export const GeneralSettings: React.FC = () => {
         {!isLinux && !pushToTalk && (
           <ShortcutInput shortcutId="cancel" grouped={true} />
         )}
+        <SpokenCommands descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
       <ModelSettingsCard />
       <SettingsGroup title={t("settings.sound.title")}>
