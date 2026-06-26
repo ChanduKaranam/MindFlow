@@ -1205,3 +1205,27 @@ pub async fn get_available_accelerators() -> crate::managers::transcription::Ava
         .await
         .expect("get_available_accelerators panicked")
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_noise_suppression_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.noise_suppression = enabled;
+    settings::write_settings(&app, settings);
+    let rm = app.state::<std::sync::Arc<crate::managers::audio::AudioRecordingManager>>();
+    rm.rebuild_recorder()
+        .map_err(|e| format!("Failed to rebuild recorder: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_vad_threshold_setting(app: AppHandle, threshold: f32) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.vad_threshold = threshold;
+    settings::write_settings(&app, settings);
+    let rm = app.state::<std::sync::Arc<crate::managers::audio::AudioRecordingManager>>();
+    rm.rebuild_recorder()
+        .map_err(|e| format!("Failed to rebuild recorder: {e}"))?;
+    Ok(())
+}
