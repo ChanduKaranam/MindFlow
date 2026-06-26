@@ -3,6 +3,95 @@ pub struct SpokenCommandsConfig {
     pub number_conversion: bool,
 }
 
+/// Punctuation triggers, two-word phrases listed so they are matched before one-word.
+const PUNCT_TRIGGERS: &[(&str, &str)] = &[
+    ("full stop", "."),
+    ("question mark", "?"),
+    ("exclamation mark", "!"),
+    ("exclamation point", "!"),
+    ("open paren", "("),
+    ("open parenthesis", "("),
+    ("close paren", ")"),
+    ("close parenthesis", ")"),
+    ("period", "."),
+    ("comma", ","),
+    ("colon", ":"),
+    ("semicolon", ";"),
+    ("hyphen", "-"),
+    ("dash", "-"),
+];
+
+/// Symbols that attach to the previous token with no leading space.
+const ATTACH_LEFT: &[&str] = &[".", ",", "?", "!", ":", ";", ")"];
+
+fn strip_edges(token: &str) -> &str {
+    token.trim_matches(|c: char| ".,?!:;()".contains(c))
+}
+
+fn lookup_punct(phrase: &str) -> Option<&'static str> {
+    PUNCT_TRIGGERS
+        .iter()
+        .find(|(trig, _)| *trig == phrase)
+        .map(|(_, sym)| *sym)
+}
+
+fn apply_punctuation(text: &str) -> String {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let two = if i + 1 < tokens.len() {
+            Some(format!(
+                "{} {}",
+                strip_edges(tokens[i]).to_lowercase(),
+                strip_edges(tokens[i + 1]).to_lowercase()
+            ))
+        } else {
+            None
+        };
+        let one = strip_edges(tokens[i]).to_lowercase();
+
+        if let Some(sym) = two.as_deref().and_then(lookup_punct) {
+            push_symbol(&mut out, sym);
+            i += 2;
+        } else if let Some(sym) = lookup_punct(&one) {
+            push_symbol(&mut out, sym);
+            i += 1;
+        } else {
+            out.push(tokens[i].to_string());
+            i += 1;
+        }
+    }
+    join_with_smart_spacing(&out)
+}
+
+/// Append a punctuation symbol, collapsing an immediately-preceding identical
+/// symbol (idempotency: "done." + "period" must not yield "done..").
+fn push_symbol(out: &mut Vec<String>, sym: &str) {
+    if let Some(last) = out.last() {
+        if last.ends_with(sym) && ATTACH_LEFT.contains(&sym) {
+            return;
+        }
+    }
+    out.push(sym.to_string());
+}
+
+fn join_with_smart_spacing(tokens: &[String]) -> String {
+    let mut result = String::new();
+    let mut prev_open_paren = false;
+    for tok in tokens {
+        let attach_left = ATTACH_LEFT.contains(&tok.as_str());
+        if result.is_empty() || attach_left || prev_open_paren {
+            result.push_str(tok);
+        } else {
+            result.push(' ');
+            result.push_str(tok);
+        }
+        prev_open_paren = tok == "(";
+    }
+    result
+}
+
 /// Newline triggers, longest phrase first so "new paragraph" wins over "new".
 const NEWLINE_TRIGGERS: &[(&str, &str)] = &[
     ("new paragraph", "\n\n"),
@@ -15,9 +104,11 @@ pub fn apply_spoken_commands(text: &str, config: &SpokenCommandsConfig) -> Strin
     if !config.enabled {
         return text.to_string();
     }
-    // Later tasks insert punctuation/capitalization/number passes here, BEFORE
-    // newlines (newlines run last because they introduce '\n').
-    apply_newlines(text)
+    let mut out = apply_punctuation(text);
+    // (Task 7) out = apply_capitalization(&out);
+    // (Task 8) if config.number_conversion { out = apply_numbers(&out); }
+    out = apply_newlines(&out);
+    out
 }
 
 /// Split into sentences, each chunk keeping its terminator and trailing whitespace.
@@ -105,5 +196,32 @@ mod tests {
     fn literal_new_line_in_prose_is_untouched() {
         let input = "I started a new line of work today.";
         assert_eq!(apply_spoken_commands(input, &cfg(true, false)), input);
+    }
+
+    // --- Task 6: punctuation spoken-commands ---
+
+    #[test]
+    fn comma_word_becomes_symbol_attached() {
+        let out = apply_spoken_commands("hello comma world", &cfg(true, false));
+        assert_eq!(out, "hello, world");
+    }
+
+    #[test]
+    fn two_word_question_mark() {
+        let out = apply_spoken_commands("really question mark", &cfg(true, false));
+        assert_eq!(out, "really?");
+    }
+
+    #[test]
+    fn open_paren_attaches_to_next_word() {
+        let out = apply_spoken_commands("see open paren note close paren", &cfg(true, false));
+        assert_eq!(out, "see (note)");
+    }
+
+    #[test]
+    fn punctuation_is_idempotent_no_double() {
+        // STT already attached the period; saying "period" must not double it.
+        let out = apply_spoken_commands("done. period", &cfg(true, false));
+        assert_eq!(out, "done.");
     }
 }
