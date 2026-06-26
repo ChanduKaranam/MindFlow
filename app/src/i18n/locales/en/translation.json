@@ -121,6 +121,16 @@
     },
     "stepper": {
       "label": "Step {{current}} of {{total}}"
+    },
+    "welcome": {
+      "title": "Type at the speed of thought.",
+      "subtitle": "MindFlow turns your voice into text in any app — fully on your device.",
+      "trust": {
+        "local": "Your voice never leaves your device",
+        "noAccount": "No account",
+        "noCloud": "No cloud"
+      },
+      "cta": "Get started"
     }
   },
   "modelSelector": {
