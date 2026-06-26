@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **CPU-only, fully local, zero network in the default/runtime path.** Fonts are **bundled as local woff2** (`app/src/assets/fonts/`), never fetched from a CDN at runtime. (Fetching OFL fonts at dev time to *vendor* them into the repo is fine.)
-- **No new heavyweight runtime dependencies.** Logo/icons are hand-authored SVG → committed PNG/ICO/ICNS. No animation library; use CSS + Tailwind transitions.
+- **No new heavyweight runtime dependencies.** Logo is a user-provided raster master (mindflow-logo.png); icons are derived from it into committed PNG/ICO/ICNS. No animation library; use CSS + Tailwind transitions.
 - **All user-facing strings via i18next** (ESLint `i18next/no-literal-string` enforces). New copy → `app/src/i18n/locales/en/translation.json` under namespaced keys; non-English locales get the English fallback for *new* keys.
 - **Bindings (`app/src/bindings.ts`) are hand-edited.** Every new Tauri command: add to `collect_commands!` in `lib.rs:353` AND hand-mirror into `bindings.ts`.
 - **Settings plumbing pattern:** field in `AppSettings` (`settings.rs:339`, `#[serde(default)]`) + entry in the `get_default_settings()` **struct literal** (`settings.rs:743`) + a `change_*`/`update_*` command (in `shortcut/mod.rs`, pattern of `change_noise_suppression_setting`) + register in `collect_commands!` + hand-edit `bindings.ts` + add a `settingsStore.ts` `settingUpdaters` entry (generic fallback only `console.warn`s — does NOT persist).
@@ -29,14 +29,14 @@
 ## File Structure
 
 **Workstream A — Rebrand & Reskin**
-- `app/src/assets/brand/flowmark.svg` (NEW) — master logo SVG (source of truth for all raster assets).
+- `app/src/assets/brand/mindflow-logo.png` (DONE, user-provided) — master logo raster; `mindflow-emblem.png` (NEW, Task 6) — square brain crop.
 - `app/src/assets/fonts/*.woff2` (NEW) — Geist, Geist Mono, Fraunces vendored.
 - `app/src/App.css` (MODIFY) — replace `@theme` tokens; add `@font-face`, gold/glass utility classes, sheen + ambient keyframes, `@supports` fallback.
 - `app/tailwind.config.js` (MODIFY) — mirror new color tokens.
 - `app/src/components/ui/Button.tsx` (MODIFY) — metallic-gold primary + new tokens.
 - `app/src/components/icons/FlowMark.tsx`, `MindFlowLogo.tsx` (NEW) — replace `HandyHand.tsx`/`HandyTextLogo.tsx`.
 - `app/src/components/shared/AmbientBackground.tsx` (NEW).
-- `app/src-tauri/icons/*`, `app/src-tauri/resources/*` (MODIFY) — regenerated from master SVG.
+- `app/src-tauri/icons/*`, `app/src-tauri/resources/*` (MODIFY) — regenerated from the master raster.
 - `app/src-tauri/tauri.conf.json`, `Cargo.toml`, `app/package.json`, `app/src-tauri/src/lib.rs`, `tray.rs` (MODIFY) — identity strings.
 - `app/src/i18n/locales/*/translation.json`, `AboutSettings.tsx`, `UpdateChecker.tsx` (MODIFY) — copy + URLs.
 
@@ -54,27 +54,9 @@
 
 # WORKSTREAM A — REBRAND & RESKIN
 
-### Task 1: Logo master SVG + preview gate ⛔ CHECKPOINT
+### Task 1: Logo master asset — DONE (user-provided)
 
-**Files:**
-- Create: `app/src/assets/brand/flowmark.svg`, `app/src/assets/brand/mindflow-logo.svg` (mark + wordmark)
-- Create (scratch, not committed): preview PNGs under the scratchpad
-
-**Interfaces:**
-- Produces: `flowmark.svg` (square, viewBox `0 0 48 48`, the mind-node+waveform mark) and `mindflow-logo.svg` (mark + "MindFlow" wordmark) — the visual source of truth Tasks 4 & 6 consume.
-
-**Design (from spec §4):** A rounded **gold node** (the "mind") at the left from which a single continuous **teal waveform** flows right; the waveform's two center peaks subtly form an **M**. Node fill = SVG `linearGradient` gold stops `#A9760F → #E0A53F → #FBE7A1 → #E0A53F → #A9760F` + a small white highlight ellipse (reflective). Waveform = teal `#2DD4BF`, rounded caps, smooth Béziers. Provide a `currentColor` monochrome variant path for the 16px tray glyph.
-
-- [ ] **Step 1: Author `flowmark.svg`** — hand-write clean SVG per the design. Include both the gradient gold node (with `<radialGradient>`/`<linearGradient>` + highlight ellipse) and the teal waveform path. Keep it legible at 16px (test by eye).
-- [ ] **Step 2: Author `mindflow-logo.svg`** — the mark + "MindFlow" wordmark to its right (gold gradient on "Mind" via `fill="url(#gold)"`, `--color-text` on "Flow", or single-color — implementer's eye; must read premium).
-- [ ] **Step 3: Render PNG previews** — using an available tool (`rsvg-convert`, ImageMagick `convert`, or `npx @resvg/resvg-js-cli`), render `flowmark.svg` at 256px and 16px and `mindflow-logo.svg` at 400px to the scratchpad. Also render a quick `sample.svg` mocking a **metallic gold button** and a **glass panel over an ambient glow** so the user approves the full material look.
-- [ ] **Step 4: STOP — present previews to the user via the Read tool (image) and request sign-off.** Do not proceed to asset generation until approved. If changes requested, revise SVG and re-render.
-- [ ] **Step 5: Commit the approved SVGs**
-
-```bash
-git add app/src/assets/brand/flowmark.svg app/src/assets/brand/mindflow-logo.svg
-git commit -m "feat(brand): add MindFlow Flow Mark master SVGs (approved preview)"
-```
+**Status:** COMPLETE. The user supplied the final logo directly; it is committed at `app/src/assets/brand/mindflow-logo.png` (1254×1254, gold circuit-brain + waveform + MINDFLOW lockup on near-black). The preview gate is satisfied. The monochrome-gold palette and raster-derivation approach are reflected in spec §3.1/§4. Tasks 4 & 6 consume this master. No further action.
 
 ---
 
@@ -93,7 +75,7 @@ git commit -m "feat(brand): add MindFlow Flow Mark master SVGs (approved preview
 - [ ] **Step 3: Add `@font-face`** for the three families (`font-display: swap`), and set `:root { font-family: "Geist", ui-sans-serif, system-ui, ...; }` with the existing system fallback retained.
 - [ ] **Step 4: Mirror tokens in `tailwind.config.js`** `extend.colors` (`accent`, `surface`, `surface-high`, `text-secondary`, `border`, `live`, `privacy`, `danger`, `on-accent` → `var(--color-*)`), add `fontFamily.sans/serif/mono`. Keep legacy `logo-primary`/`logo-stroke`/`text-stroke` keys until Task 5 retires them.
 - [ ] **Step 5: Verify** — `cd app && bun run build` succeeds; launch `bun run dev`, confirm the app background/text now use the new neutral tokens in both light/dark (toggle OS theme) with no console errors.
-- [ ] **Step 6: Commit** — `feat(brand): new gold+teal dark-first design tokens and bundled fonts`
+- [ ] **Step 6: Commit** — `feat(brand): new monochrome-gold dark-first design tokens and bundled fonts`
 
 ---
 
@@ -110,7 +92,7 @@ git commit -m "feat(brand): add MindFlow Flow Mark master SVGs (approved preview
 - [ ] **Step 1: Add `.glass`** — `background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: var(--glass-border); box-shadow: var(--glass-shadow);` with `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--color-surface); } }`.
 - [ ] **Step 2: Add `.btn-gold`** — `background: var(--gradient-gold); color: var(--color-on-accent); box-shadow: var(--gold-edge-highlight), var(--gold-edge-shadow);` hover → `--gradient-gold-hover`. Add `.gold-text { background: var(--gradient-gold); -webkit-background-clip: text; background-clip: text; color: transparent; }`.
 - [ ] **Step 3: Add sheen** — `.sheen` overlay (a `::after` diagonal `linear-gradient` highlight) animating `translateX` once on hover over ~600ms ease-out; wrap in `@media (prefers-reduced-motion: no-preference)`.
-- [ ] **Step 4: Add ambient keyframes** — 2–3 slow-drifting blurred radial-gradient glows (gold + teal, low opacity) keyframes, guarded by `prefers-reduced-motion`.
+- [ ] **Step 4: Add ambient keyframes** — 2–3 slow-drifting blurred radial-gradient glows (warm gold tones, low opacity) keyframes, guarded by `prefers-reduced-motion`.
 - [ ] **Step 5: Build `AmbientBackground.tsx`** — a `position: fixed; inset: 0; z-index: -1; pointer-events: none;` `aria-hidden` element rendering the glow layers; pauses animation when `document.hidden` (visibilitychange listener).
 - [ ] **Step 6: Verify** — temporarily mount `<AmbientBackground/>` + a `.glass` div + `.btn-gold` in `App.tsx`; `bun run dev`; confirm glass frosts over the glow and gold button shows the metallic sheen on hover (and that reduced-motion disables animation). Remove the temporary mount.
 - [ ] **Step 7: Commit** — `feat(brand): metallic-gold + glass utilities and ambient background`
@@ -125,11 +107,11 @@ git commit -m "feat(brand): add MindFlow Flow Mark master SVGs (approved preview
 - Delete: `app/src/components/icons/HandyHand.tsx`, `HandyTextLogo.tsx` (after references removed)
 
 **Interfaces:**
-- Consumes: `flowmark.svg` design (Task 1).
+- Consumes: raster master `app/src/assets/brand/mindflow-logo.png` (Task 1) + the cropped emblem `app/src/assets/brand/mindflow-emblem.png` (produced in Task 6 — if Task 6 runs after, generate a quick emblem crop here with sharp; the two tasks may be reordered).
 - Produces: `FlowMark({ width?: number; className?: string })` and `MindFlowLogo({ width?: number; className?: string })` — same call signature as the retired `HandyHand`/`HandyTextLogo` so swap-in is mechanical.
 
-- [ ] **Step 1: Build `FlowMark.tsx`** — inline the approved `flowmark.svg` as a React component with `width`/`className` props (default `width=24`), gradient defs `id`-scoped to avoid collisions.
-- [ ] **Step 2: Build `MindFlowLogo.tsx`** — inline `mindflow-logo.svg` similarly (used where `HandyTextLogo` was: sidebar header `width={120}`, onboarding `width={200}`).
+- [ ] **Step 1: Build `FlowMark.tsx`** — an `<img src={emblemPng} alt="" width={width} className={className}/>` wrapper (default `width=24`) using the brain-emblem PNG (import via Vite asset import). If the emblem crop doesn't exist yet, derive it in this task with a one-off `sharp` extract from the master (brain region) and commit it.
+- [ ] **Step 2: Build `MindFlowLogo.tsx`** — `<img src={mindflowLogoPng} alt="MindFlow" width={width} className={className}/>` (used where `HandyTextLogo` was: sidebar header `width={120}`, onboarding `width={200}`). Optional `emblemOnly?: boolean` swaps to the emblem PNG.
 - [ ] **Step 3: Repoint imports** — replace `HandyHand` → `FlowMark` and `HandyTextLogo` → `MindFlowLogo` in `Sidebar.tsx`, `Onboarding.tsx`, `AccessibilityOnboarding.tsx`. Grep `HandyTextLogo|HandyHand` to confirm zero remaining references, then delete the two old files.
 - [ ] **Step 4: Verify** — `bun run build` + `bun run lint` clean; `bun run dev` shows the new mark in the sidebar and onboarding.
 - [ ] **Step 5: Commit** — `feat(brand): replace Handy hand logo with MindFlow Flow Mark`
@@ -164,11 +146,11 @@ git commit -m "feat(brand): add MindFlow Flow Mark master SVGs (approved preview
 - Modify: `app/src-tauri/tauri.conf.json:30-38` (resource/icon paths), `app/src-tauri/src/tray.rs` (icon filename refs), any `lib.rs`/`overlay.rs` reference to `handy.png`
 
 **Interfaces:**
-- Consumes: master SVGs (Task 1).
-- Produces: branded raster assets at all required sizes; updated paths in config/code.
+- Consumes: raster master `app/src/assets/brand/mindflow-logo.png` (Task 1).
+- Produces: `app/src/assets/brand/mindflow-emblem.png` (square brain emblem crop), branded raster assets at all required sizes; updated paths in config/code.
 
-- [ ] **Step 1: Generate the app icon set** — render `mindflow-logo`/`flowmark` to a 1024px master PNG, then `cd app && bun run tauri icon path/to/master-1024.png` to regenerate `src-tauri/icons/*` (handles ico/icns/png/store sizes). Confirm the generated files overwrite the old Handy icons.
-- [ ] **Step 2: Generate tray/overlay resources** — render `flowmark.svg` (and its state-tinted variants: idle = gold/teal, recording = teal `--color-live`, transcribing = gold) to PNG at the tray sizes for both light and dark, writing the `resources/*` filenames. Rename `handy.png`→`mindflow.png`.
+- [ ] **Step 1: Generate the app icon set** — with `sharp`, crop the brain-emblem region from the master (the brain + wave, wordmark excluded) into a centered **square** PNG on the near-black background (`mindflow-emblem.png`, ≥1024px); then `cd app && bun run tauri icon ../src/assets/brand/mindflow-emblem.png` to regenerate `src-tauri/icons/*` (ico/icns/png/store sizes). Confirm the old Handy icons are overwritten.
+- [ ] **Step 2: Generate tray/overlay resources** — from the emblem, produce the tray PNGs: idle = gold emblem; recording = emblem tinted warmer/brighter (`--color-recording` glow); transcribing = dimmed. Generate light/dark variants at the tray sizes, writing the `resources/*` filenames. Rename `handy.png`→`mindflow.png`. Verify legibility at 24–32px (the brain reads; if too dense, use a higher-contrast simplified crop).
 - [ ] **Step 3: Update references** — grep `app/src-tauri` for `handy.png` and the tray resource names; repoint `tauri.conf.json` and `tray.rs`/`overlay.rs` to the new filenames. Update the `icon` array in `tauri.conf.json` only if filenames changed (they don't — `tauri icon` keeps names).
 - [ ] **Step 4: Verify** — `cd app/src-tauri && cargo check` passes (resource paths resolve); `bun run dev`: the tray shows the new mark and switches state icons (idle/recording/transcribing).
 - [ ] **Step 5: Commit** — `feat(brand): regenerate app and tray icons from Flow Mark`
@@ -299,7 +281,7 @@ pub fn set_onboarding_completed(app: AppHandle, completed: bool) -> Result<(), S
 - Consumes: the production transcription delivery path. **Resolve at implementation:** check `app/src/components/DevInject.tsx` and the M1 delivery code for how transcribed text reaches a focused field / which event fires on delivery (`listen("...")`). If a frontend-observable event with text exists, use it; otherwise capture into the step's own `<textarea>` and read its value/word-count directly.
 - Produces: `TryItNowStep({ hotkey: string; onDone: () => void; stepIndex; stepTotal })`.
 
-- [ ] **Step 1: Build the practice field** — a `.glass` panel with a focused `<textarea>` and a pre-filled prompt line: `onboarding.tryit.prompt` = "Hold {{hotkey}} and read this line aloud." Show the live recording indicator (teal pulse) while recording.
+- [ ] **Step 1: Build the practice field** — a `.glass` panel with a focused `<textarea>` and a pre-filled prompt line: `onboarding.tryit.prompt` = "Hold {{hotkey}} and read this line aloud." Show the live recording indicator (warm-gold `--color-recording` pulse) while recording.
 - [ ] **Step 2: Detect success + compute the win** — when transcribed text lands in the field (non-empty), compute `words = text.trim().split(/\s+/).length` and elapsed seconds from first-audio to delivery; show the win: `onboarding.tryit.win` = "You typed {{words}} words in {{seconds}}s — about {{factor}}× faster than typing." (`factor` = round(words / (seconds * 40/60)) clamped ≥ 1, i.e. vs ~40 wpm typing; guard divide-by-zero).
 - [ ] **Step 3: Skip path** — a Fitts-distant "Skip" link → `onDone()` without the win (feature-intro still shows next).
 - [ ] **Step 4: i18n** — add `onboarding.tryit.*`.

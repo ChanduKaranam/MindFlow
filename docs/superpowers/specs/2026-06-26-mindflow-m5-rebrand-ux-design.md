@@ -57,10 +57,12 @@ Replaces the current pink (`--color-background-ui: #da5893`) and pink-logo token
 | `--color-accent` (gold) | `#E0A53F` | Brand, primary buttons (with **dark** text), active nav |
 | `--color-accent-hover` | `#EBB54E` | Hover on gold elements |
 | `--color-accent-pressed` | `#C68A2E` | Pressed/gradient-deep |
-| `--color-live` (teal) | `#2DD4BF` | Recording/listening indicator, "active model" |
-| `--color-privacy` (green) | `#34D399` | "Local" / "audio never leaves" confirmations |
+| `--color-recording` (gold glow) | `#F4CE6B` | Recording/listening indicator — an animated warm-gold pulse (brand-cohesive; NOT teal) |
+| `--color-privacy` (green) | `#34D399` | "Local" / "audio never leaves" confirmations (functional only) |
 | `--color-danger` (red) | `#F87171` | Stop / cancel / destructive |
 | `--color-on-accent` | `#121212` | Text/icons ON gold fills (gold+white fails WCAG; gold+dark ≈ 8.4:1) |
+
+> **Monochrome-gold identity:** per the final user-provided logo, the brand is gold-only — there is **no teal**. The recording state is a warm-gold pulse (`--color-recording`); stop/cancel is red (`--color-danger`); green (`--color-privacy`) appears only as a functional privacy-confirmation check. Any prior `--color-live`/teal references elsewhere in this spec are superseded by `--color-recording`.
 
 **Light mode (`@media (prefers-color-scheme: dark)` inverse — the existing media-query strategy is kept):**
 
@@ -73,7 +75,7 @@ Replaces the current pink (`--color-background-ui: #da5893`) and pink-logo token
 | `--color-text-secondary` | `#52525B` |
 | `--color-border` | `#E4E4E7` |
 | `--color-accent` (gold) | `#E0A53F` (fills) / **`#9A6B12`** for gold *text/links* (gold-on-light text fails WCAG, so text uses dark amber; gold *fills* keep dark text) |
-| `--color-live` (teal) | `#0D9488` (darkened for contrast on light) |
+| `--color-recording` (gold glow) | `#C68A2E` (darkened for contrast on light) |
 | `--color-privacy` | `#059669` |
 | `--color-danger` | `#DC2626` |
 | `--color-on-accent` | `#1A1305` |
@@ -97,7 +99,7 @@ All transitions **< 400ms** (Doherty). Use existing Tailwind transition utilitie
 
 - UI feedback (toggles, button press, nav active): **150ms**, standard easing `cubic-bezier(0.2,0,0,1)`.
 - Panels / onboarding step transitions / overlays: **300ms**, emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`.
-- The recording/live indicator pulses on the teal `--color-live`; a calm, slow pulse when idle-listening. (A full audio-reactive waveform is out of scope — §9 — a CSS pulse is the M5 deliverable.)
+- The recording/live indicator pulses on the warm-gold `--color-recording`; a calm, slow pulse when idle-listening. (A full audio-reactive waveform is out of scope — §9 — a CSS pulse is the M5 deliverable.)
 - **Gold sheen sweep** (decorative, not feedback): on hover of primary gold elements, a soft diagonal highlight band translates across once, ~600ms ease-out. This intentionally exceeds the 400ms feedback ceiling because it is *ambient decoration*, not interaction latency — the click/press state still fires <150ms. Honors `prefers-reduced-motion` (sheen + ambient drift disabled).
 
 ### 3.4 Material — reflective gold & glassmorphism
@@ -115,7 +117,7 @@ The premium feel comes from two materials layered on the dark canvas: **metallic
 
 - **Logo / wordmark / gold text:** apply `--gradient-gold` via `background-clip: text; color: transparent`.
 - **Gold buttons:** `background: var(--gradient-gold)` + both inset edge shadows + dark `--color-on-accent` text; hover swaps to `--gradient-gold-hover` and triggers the sheen sweep.
-- **SVG logo (§4):** the gold node uses an SVG `linearGradient` (same three gold stops) plus a small white highlight ellipse for a true reflective look; the 16px tray glyph falls back to solid `--color-accent`.
+- **Logo (§4):** the brand mark itself is the user-provided gold raster (`mindflow-logo.png`); these gold *gradient tokens* still drive the **UI** gold (buttons, `.gold-text`, active states) so the chrome matches the logo's metal.
 - Contrast judged against the mid stop `#E0A53F` (dark text ≈ 8.4:1 ✓).
 
 **3.4.2 Glassmorphism.** Frosted translucent chrome. Tokens in `App.css`:
@@ -136,24 +138,25 @@ The premium feel comes from two materials layered on the dark canvas: **metallic
 
 ## 4. Logo & Icon Assets — "The Flow Mark"
 
-### 4.1 The mark
+### 4.1 The mark (FINAL — user-provided)
 
-A **mind node + waveform** in one composition: a rounded node (the "mind" — origin of thought) from which a single continuous waveform line flows rightward; the waveform's two center peaks subtly form an **M**. Voice (wave) + Mind (node) + Flow (unbroken line).
+The logo is a **user-provided raster master**: a glowing **gold circuit-board brain** (two hemispheres of circuit traces + nodes, central fissure) with a **symmetric audio waveform** passing horizontally through its middle, above a **MINDFLOW** wordmark and **THINK • FLOW • EVOLVE** tagline — all shiny gold on near-black. Master file committed at `app/src/assets/brand/mindflow-logo.png` (1254×1254, opaque black background).
 
-- **Shape language:** one filled node + one continuous open stroke, rounded caps, smooth Béziers (no sharp corners). Geometric, calm.
-- **Color:** node in **reflective gold** — an SVG `linearGradient` using the §3.4.1 stops (`#A9760F → #E0A53F → #FBE7A1 → #E0A53F → #A9760F`) plus a small white highlight ellipse for a true metallic sheen; waveform stroke in **teal `#2DD4BF`** (two-tone warm/cool — avoids the muddy olive a blended gold→teal gradient would pass through). A monochrome variant (single `currentColor`) is provided for the 16px tray glyph and disabled states (no gradient at that size).
-- **Buildable as clean SVG**, parameterized by `width`/`className`, mirroring the existing `HandyTextLogo` / `HandyHand` component API so swap-in is mechanical.
+- **Identity is monochrome gold** — there is no teal in the brand (see §3.1 palette update).
+- **Full lockup** (brain + wave + wordmark) is used for the onboarding hero, About page, and sidebar header.
+- **Brain emblem** (the brain + wave region, cropped square, wordmark excluded) is the source for the **app/bundle icon and the tray icon**.
+- Derivation is mechanical rasterization (sharp / `tauri icon`), not hand-authored SVG.
 
 ### 4.2 Deliverables
 
-- **`FlowMark.tsx`** — the icon-only mark (replaces `HandyHand.tsx` usage as the sidebar/nav glyph).
-- **`MindFlowLogo.tsx`** — mark + "MindFlow" wordmark (Geist/Fraunces letterforms or hand-tuned paths) (replaces `HandyTextLogo.tsx` in sidebar + onboarding).
-- **App/bundle icons** — regenerate `app/src-tauri/icons/{32x32,64x64,128x128,128x128@2x}.png`, `icon.icns`, `icon.ico`, `logo.png`, and Windows Store square/wide assets from the mark. (PNG/ICO/ICNS generated from a master SVG via a documented step; committed as binaries.)
-- **Tray/overlay assets** — regenerate `app/src-tauri/resources/{handy.png→mindflow.png, tray_idle{,_dark}.png, tray_recording{,_dark}.png, tray_transcribing{,_dark}.png, recording.png, transcribing.png}` from the mark in light/dark variants. Update `tauri.conf.json` resource paths and `tray.rs` icon references accordingly.
+- **`MindFlowLogo.tsx`** — renders the full-lockup master (`mindflow-logo.png`) as an `<img>` with `width`/`className` props, `alt="MindFlow"`; replaces `HandyTextLogo.tsx` in sidebar + onboarding. (Optional `emblemOnly?: boolean` to show a pre-cropped brain emblem PNG for compact placements.)
+- **`FlowMark.tsx`** — renders the cropped **brain-emblem** PNG (`app/src/assets/brand/mindflow-emblem.png`, derived in the icon task) as the small nav glyph; replaces `HandyHand.tsx`. Same `width`/`className` API.
+- **App/bundle icons** — derive a square brain-emblem PNG from the master, then `bun run tauri icon` to regenerate `app/src-tauri/icons/*` (`32x32`, `128x128`, `128x128@2x`, `icon.icns`, `icon.ico`, Windows Store assets, `logo.png`).
+- **Tray/overlay assets** — derive from the brain emblem: `app/src-tauri/resources/{mindflow.png, tray_idle{,_dark}.png, tray_recording{,_dark}.png, tray_transcribing{,_dark}.png, recording.png, transcribing.png}`. Idle = gold emblem; recording = gold emblem with a warm-glow tint; transcribing = dimmed/animated variant. Update `tauri.conf.json` resource paths + `tray.rs` references.
 
-### 4.3 Preview-first gate
+### 4.3 Preview gate — SATISFIED
 
-The first implementation task **renders a PNG preview of the mark** (and wordmark) and stops for user sign-off before any asset regeneration. The mark is approved as a rendered image, not a description.
+The mark was approved as a rendered image: the user supplied the final logo (`logo.png`) directly. No further preview gate is required; remaining brand tasks derive assets from this master.
 
 ---
 
