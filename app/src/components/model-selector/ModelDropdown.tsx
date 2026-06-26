@@ -25,7 +25,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
   };
 
   return (
-    <div className="absolute bottom-full start-0 mb-2 w-64 max-h-[60vh] overflow-y-auto bg-background border border-mid-gray/20 rounded-lg shadow-lg py-2 z-50">
+    <div className="absolute bottom-full start-0 mb-2 w-64 max-h-[60vh] overflow-y-auto bg-background border border-border rounded-lg shadow-lg py-2 z-50">
       {downloadedModels.length > 0 ? (
         <div>
           {downloadedModels.map((model) => (
@@ -40,9 +40,9 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
               }}
               tabIndex={0}
               role="button"
-              className={`w-full px-3 py-2 text-start hover:bg-mid-gray/10 transition-colors cursor-pointer focus:outline-none ${
+              className={`w-full px-3 py-2 text-start hover:bg-surface-high transition-colors cursor-pointer focus:outline-none ${
                 currentModelId === model.id
-                  ? "bg-logo-primary/10 text-logo-primary"
+                  ? "bg-accent/10 text-accent"
                   : ""
               }`}
             >
@@ -56,7 +56,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
                       </span>
                     )}
                     {(model as { tier?: string }).tier && (
-                      <span className="ms-1.5 text-[10px] font-medium text-logo-primary/70 uppercase">
+                      <span className="ms-1.5 text-[10px] font-medium text-accent/70 uppercase">
                         {(model as { tier?: string }).tier}
                       </span>
                     )}
@@ -66,7 +66,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
                   </div>
                 </div>
                 {currentModelId === model.id && (
-                  <div className="text-xs text-logo-primary">
+                  <div className="text-xs text-accent">
                     {t("modelSelector.active")}
                   </div>
                 )}

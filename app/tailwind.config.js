@@ -18,13 +18,6 @@ export default {
         privacy: "var(--color-privacy)",
         danger: "var(--color-danger)",
         "on-accent": "var(--color-on-accent)",
-
-        // ── Legacy aliases — kept until Task 5 retires them ──
-        "mid-gray": "var(--color-mid-gray)",
-        "background-ui": "var(--color-background-ui)",
-        "logo-primary": "var(--color-logo-primary)",
-        "logo-stroke": "var(--color-logo-stroke)",
-        "text-stroke": "var(--color-text-stroke)",
       },
       fontFamily: {
         sans: [

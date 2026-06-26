@@ -119,7 +119,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
               return (
                 <div key={model.id} className="relative">
                   {isRecommendedForCpu && (
-                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                    <div className="text-xs text-accent font-medium mb-1 text-start">
                       {t("onboarding.recommendedForYourPc")}
                     </div>
                   )}
@@ -151,7 +151,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
               return (
                 <div key={model.id} className="relative">
                   {isRecommendedForCpu && (
-                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                    <div className="text-xs text-accent font-medium mb-1 text-start">
                       {t("onboarding.recommendedForYourPc")}
                     </div>
                   )}

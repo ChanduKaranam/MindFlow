@@ -96,7 +96,7 @@ export const ReplacementsEditor: React.FC<ReplacementsEditorProps> = React.memo(
               {replacements.map((r, i) => (
                 <div
                   key={`${r.from}-${i}`}
-                  className={`flex items-center justify-between px-2 py-1 rounded ${grouped ? "" : "border border-mid-gray/20"} bg-mid-gray/10`}
+                  className={`flex items-center justify-between px-2 py-1 rounded ${grouped ? "" : "border border-border"} bg-surface-high`}
                 >
                   <span className="text-sm">
                     {`${r.from} → ${r.to || "∅"}`}
