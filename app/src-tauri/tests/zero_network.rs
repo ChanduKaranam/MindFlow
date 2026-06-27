@@ -7,6 +7,8 @@
 //! public-domain JFK "ask not" WAV clip entirely in-process, and asserts that
 //! the transcript is non-empty and contains an expected word.  No network I/O
 //! occurs during model load or inference: all ONNX ops run on CPU via ORT.
+//! Also runs the offline dictionary/replacement pass on the transcript and
+//! asserts the substitution applies (still no network).
 //!
 //! # Running locally
 //! ```
@@ -115,7 +117,32 @@ fn transcribes_offline_on_cpu() {
         "expected the transcript to contain a word from the JFK clip, got: {text:?}"
     );
 
+    // ── DoD: dictionary/replacement applies offline ──────────────────────────
+    // Prove the personalization layer (M4) runs with no network: feed the real
+    // transcript through apply_replacements and assert the substitution lands.
+    use handy_app_lib::replace::{apply_replacements, Replacement};
+
+    // Pick a word we just asserted is present so the rule is guaranteed to fire.
+    let rule_from = if lower.contains("country") {
+        "country"
+    } else if lower.contains("americans") {
+        "americans"
+    } else {
+        "ask"
+    };
+    let rules = vec![Replacement {
+        from: rule_from.to_string(),
+        to: "MINDFLOW_OK".to_string(),
+    }];
+    let replaced = apply_replacements(&text, &rules);
+    eprintln!("After replacement ({rule_from} -> MINDFLOW_OK): {replaced}");
+    assert!(
+        replaced.contains("MINDFLOW_OK"),
+        "offline dictionary/replacement must apply, got: {replaced:?}"
+    );
+
     eprintln!(
-        "PASS — offline CPU transcription confirmed (no network required). Transcript: {text:?}"
+        "PASS — offline CPU transcription + dictionary confirmed (no network required). \
+         Transcript: {text:?}"
     );
 }
