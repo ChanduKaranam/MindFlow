@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Headphones, MessageSquare, BookText, Waves } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import AmbientBackground from "@/components/shared/AmbientBackground";
 import OnboardingStepper from "./OnboardingStepper";
 
 interface Props {
@@ -36,6 +37,7 @@ export default function FeatureIntro({ onFinish, stepIndex, stepTotal }: Props) 
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-6">
+      <AmbientBackground />
       <div
         className="glass rounded-2xl p-8 w-full flex flex-col gap-6"
         style={{ maxWidth: "480px" }}

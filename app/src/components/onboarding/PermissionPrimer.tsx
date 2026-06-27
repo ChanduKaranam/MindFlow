@@ -9,6 +9,7 @@ import {
 } from "tauri-plugin-macos-permissions-api";
 import { Mic, ShieldCheck, Check } from "lucide-react";
 import { commands } from "@/bindings";
+import AmbientBackground from "@/components/shared/AmbientBackground";
 import OnboardingStepper from "./OnboardingStepper";
 
 interface Props {
@@ -147,7 +148,8 @@ export default function PermissionPrimer({
   const Icon = isMic ? Mic : ShieldCheck;
 
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center p-6 gap-8">
+    <div className="relative h-screen w-screen flex flex-col items-center justify-center p-6 gap-8">
+      <AmbientBackground />
       <div className="glass max-w-md w-full flex flex-col items-center gap-6 p-8 rounded-2xl">
         {/* Stepper */}
         <OnboardingStepper

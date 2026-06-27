@@ -211,11 +211,16 @@ pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, Stri
 /// Reset every setting to its built-in default. Writes `get_default_settings()`
 /// to the store and returns it so the frontend can repopulate all controls.
 /// Models, history, and recordings live outside the settings store and are
-/// untouched.
+/// untouched — and the *active model selection* is preserved across the reset
+/// so transcription keeps working immediately (clearing it would leave the app
+/// with no loaded model, contradicting the "your models are not affected"
+/// promise even though the model files themselves survive on disk).
 #[tauri::command]
 #[specta::specta]
 pub fn reset_settings_to_defaults(app: AppHandle) -> Result<crate::settings::AppSettings, String> {
-    let defaults = crate::settings::get_default_settings();
+    let current = crate::settings::get_settings(&app);
+    let mut defaults = crate::settings::get_default_settings();
+    defaults.selected_model = current.selected_model;
     crate::settings::write_settings(&app, defaults.clone());
     Ok(defaults)
 }
