@@ -251,9 +251,12 @@
         "noResults": "No languages found",
         "auto": "Auto"
       },
-      "pushToTalk": {
-        "label": "Push To Talk",
-        "description": "Hold the hotkey to record, release to stop. Turn this off for hands-free mode: press once to start, press again to stop."
+      "recordingMode": {
+        "title": "Recording mode",
+        "description": "How the activation shortcut controls recording.",
+        "hold": "Hold to talk",
+        "toggle": "Toggle (press to start and stop)",
+        "handsFree": "Hands-free (press to start, Enter to stop)"
       },
       "spokenCommands": {
         "label": "Spoken formatting commands",

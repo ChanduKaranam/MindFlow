@@ -23,7 +23,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
     self, get_settings, AutoSubmitKey, ClipboardHandling, KeyboardImplementation, LLMPrompt,
-    OverlayPosition, PasteMethod, ShortcutBinding, SoundTheme, TypingTool,
+    OverlayPosition, PasteMethod, RecordingMode, ShortcutBinding, SoundTheme, TypingTool,
     APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
@@ -71,6 +71,24 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
     match settings.keyboard_implementation {
         KeyboardImplementation::Tauri => tauri_impl::unregister_cancel_shortcut(app),
         KeyboardImplementation::HandyKeys => handy_keys::unregister_cancel_shortcut(app),
+    }
+}
+
+/// Register the hands-free stop shortcut (called when hands-free recording starts)
+pub fn register_handsfree_stop_shortcut(app: &AppHandle) {
+    let settings = get_settings(app);
+    match settings.keyboard_implementation {
+        KeyboardImplementation::Tauri => tauri_impl::register_handsfree_stop_shortcut(app),
+        KeyboardImplementation::HandyKeys => handy_keys::register_handsfree_stop_shortcut(app),
+    }
+}
+
+/// Unregister the hands-free stop shortcut (called when hands-free recording stops)
+pub fn unregister_handsfree_stop_shortcut(app: &AppHandle) {
+    let settings = get_settings(app);
+    match settings.keyboard_implementation {
+        KeyboardImplementation::Tauri => tauri_impl::unregister_handsfree_stop_shortcut(app),
+        KeyboardImplementation::HandyKeys => handy_keys::unregister_handsfree_stop_shortcut(app),
     }
 }
 
@@ -490,9 +508,9 @@ fn initialize_handy_keys_with_rollback(app: &AppHandle) -> Result<bool, String> 
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn change_recording_mode_setting(app: AppHandle, mode: RecordingMode) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.push_to_talk = enabled;
+    settings.recording_mode = mode;
     settings::write_settings(&app, settings);
     Ok(())
 }

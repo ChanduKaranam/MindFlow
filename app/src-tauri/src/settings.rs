@@ -306,6 +306,18 @@ impl Default for OrtAcceleratorSetting {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingMode {
+    Hold,
+    Toggle,
+    HandsFree,
+}
+
+fn default_recording_mode() -> RecordingMode {
+    RecordingMode::Hold
+}
+
 #[derive(Clone, Serialize, Deserialize, Type)]
 #[serde(transparent)]
 pub(crate) struct SecretMap(HashMap<String, String>);
@@ -338,7 +350,8 @@ impl std::ops::DerefMut for SecretMap {
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,
-    pub push_to_talk: bool,
+    #[serde(default = "default_recording_mode")]
+    pub recording_mode: RecordingMode,
     pub audio_feedback: bool,
     #[serde(default = "default_audio_feedback_volume")]
     pub audio_feedback_volume: f32,
@@ -793,10 +806,20 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+    bindings.insert(
+        "hands_free_stop".to_string(),
+        ShortcutBinding {
+            id: "hands_free_stop".to_string(),
+            name: "Hands-free stop".to_string(),
+            description: "Stops a hands-free recording.".to_string(),
+            default_binding: "enter".to_string(),
+            current_binding: "enter".to_string(),
+        },
+    );
 
     AppSettings {
         bindings,
-        push_to_talk: true,
+        recording_mode: RecordingMode::Hold,
         audio_feedback: false,
         audio_feedback_volume: default_audio_feedback_volume(),
         sound_theme: default_sound_theme(),
@@ -1121,5 +1144,28 @@ mod vad_threshold_tests {
         // Missing key falls back to the default.
         let p2: Probe = serde_json::from_str("{}").unwrap();
         assert_eq!(p2.vad_threshold, 0.5);
+    }
+}
+
+#[cfg(test)]
+mod recording_mode_tests {
+    use super::*;
+
+    #[test]
+    fn default_recording_mode_is_hold() {
+        assert_eq!(default_recording_mode(), RecordingMode::Hold);
+    }
+
+    #[test]
+    fn recording_mode_round_trips() {
+        #[derive(serde::Deserialize)]
+        struct Probe {
+            #[serde(default = "default_recording_mode")]
+            recording_mode: RecordingMode,
+        }
+        let p: Probe = serde_json::from_str(r#"{"recording_mode":"hands_free"}"#).unwrap();
+        assert_eq!(p.recording_mode, RecordingMode::HandsFree);
+        let p2: Probe = serde_json::from_str("{}").unwrap();
+        assert_eq!(p2.recording_mode, RecordingMode::Hold);
     }
 }

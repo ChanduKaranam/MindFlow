@@ -1,5 +1,6 @@
 use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
+use crate::settings::RecordingMode;
 use log::{debug, error, warn};
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
@@ -15,7 +16,7 @@ enum Command {
         binding_id: String,
         hotkey_string: String,
         is_pressed: bool,
-        push_to_talk: bool,
+        mode: RecordingMode,
     },
     Cancel {
         recording_was_active: bool,
@@ -56,10 +57,10 @@ impl TranscriptionCoordinator {
                             binding_id,
                             hotkey_string,
                             is_pressed,
-                            push_to_talk,
+                            mode,
                         } => {
                             // Debounce rapid-fire press events (key repeat / double-tap).
-                            // Releases always pass through for push-to-talk.
+                            // Releases always pass through.
                             if is_pressed {
                                 let now = Instant::now();
                                 if last_press.map_or(false, |t| now.duration_since(t) < DEBOUNCE) {
@@ -69,26 +70,37 @@ impl TranscriptionCoordinator {
                                 last_press = Some(now);
                             }
 
-                            if push_to_talk {
-                                if is_pressed && matches!(stage, Stage::Idle) {
-                                    start(&app, &mut stage, &binding_id, &hotkey_string);
-                                } else if !is_pressed
-                                    && matches!(&stage, Stage::Recording(id) if id == &binding_id)
-                                {
-                                    stop(&app, &mut stage, &binding_id, &hotkey_string);
-                                }
+                            let event = if binding_id == "hands_free_stop" {
+                                InputEvent::StopKeyPress
                             } else if is_pressed {
-                                match &stage {
-                                    Stage::Idle => {
-                                        start(&app, &mut stage, &binding_id, &hotkey_string);
-                                    }
-                                    Stage::Recording(id) if id == &binding_id => {
-                                        stop(&app, &mut stage, &binding_id, &hotkey_string);
-                                    }
-                                    _ => {
-                                        debug!("Ignoring press for '{binding_id}': pipeline busy")
+                                InputEvent::ActivationPress
+                            } else {
+                                InputEvent::ActivationRelease
+                            };
+                            let stage_kind = match &stage {
+                                Stage::Idle => StageKind::Idle,
+                                Stage::Processing => StageKind::Processing,
+                                Stage::Recording(id) if id == &binding_id => StageKind::RecordingThis,
+                                Stage::Recording(_) => StageKind::RecordingOther,
+                            };
+                            match decide(mode, stage_kind, event) {
+                                Decision::Start => {
+                                    start(&app, &mut stage, &binding_id, &hotkey_string);
+                                    if mode == RecordingMode::HandsFree && matches!(stage, Stage::Recording(_)) {
+                                        crate::shortcut::register_handsfree_stop_shortcut(&app);
                                     }
                                 }
+                                Decision::Stop => {
+                                    // For a StopKeyPress the active binding lives in `stage`, not `binding_id`.
+                                    let active = match &stage { Stage::Recording(id) => id.clone(), _ => binding_id.clone() };
+                                    // Unconditionally unregister the hands-free Enter shortcut on every stop.
+                                    // It is idempotent (a no-op when not registered), and gating on the
+                                    // current mode leaked the Enter capture if the user changed recording mode
+                                    // mid-recording and then stopped via the activation hotkey.
+                                    crate::shortcut::unregister_handsfree_stop_shortcut(&app);
+                                    stop(&app, &mut stage, &active, &hotkey_string);
+                                }
+                                Decision::Ignore => {}
                             }
                         }
                         Command::Cancel {
@@ -98,6 +110,7 @@ impl TranscriptionCoordinator {
                             if !matches!(stage, Stage::Processing)
                                 && (recording_was_active || matches!(stage, Stage::Recording(_)))
                             {
+                                crate::shortcut::unregister_handsfree_stop_shortcut(&app);
                                 stage = Stage::Idle;
                             }
                         }
@@ -106,6 +119,11 @@ impl TranscriptionCoordinator {
                         }
                     }
                 }
+                // On normal app shutdown the OS releases all global shortcuts as part of
+                // process teardown, so the hands-free Enter shortcut is implicitly freed
+                // here. A future refactor adding in-process graceful shutdown must call
+                // unregister_handsfree_stop_shortcut() explicitly to preserve the
+                // "Enter never lingers after recording stops" invariant.
                 debug!("Transcription coordinator exited");
             }));
             if let Err(e) = result {
@@ -117,13 +135,14 @@ impl TranscriptionCoordinator {
     }
 
     /// Send a keyboard/signal input event for a transcribe binding.
-    /// For signal-based toggles, use `is_pressed: true` and `push_to_talk: false`.
+    /// Pass the current `RecordingMode` so the coordinator can route via `decide()`.
+    /// For signal-based events use `is_pressed: true` and `mode: RecordingMode::Toggle`.
     pub fn send_input(
         &self,
         binding_id: &str,
         hotkey_string: &str,
         is_pressed: bool,
-        push_to_talk: bool,
+        mode: RecordingMode,
     ) {
         if self
             .tx
@@ -131,7 +150,7 @@ impl TranscriptionCoordinator {
                 binding_id: binding_id.to_string(),
                 hotkey_string: hotkey_string.to_string(),
                 is_pressed,
-                push_to_talk,
+                mode,
             })
             .is_err()
         {
@@ -181,4 +200,110 @@ fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &st
     };
     action.stop(app, binding_id, hotkey_string);
     *stage = Stage::Processing;
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum InputEvent {
+    ActivationPress,
+    ActivationRelease,
+    StopKeyPress,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum StageKind {
+    Idle,
+    RecordingThis,
+    RecordingOther,
+    Processing,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Decision {
+    Start,
+    Stop,
+    Ignore,
+}
+
+/// Pure recording-lifecycle decision. No side effects — fully unit-tested.
+pub fn decide(mode: RecordingMode, stage: StageKind, event: InputEvent) -> Decision {
+    use Decision::*;
+    use InputEvent::*;
+    use RecordingMode::*;
+    use StageKind::*;
+
+    if matches!(stage, Processing) {
+        return Ignore;
+    }
+    match (mode, stage, event) {
+        // Start: an activation press while idle, in any mode.
+        (_, Idle, ActivationPress) => Start,
+
+        // Hold: stop on release of the active binding.
+        (Hold, RecordingThis, ActivationRelease) => Stop,
+
+        // Toggle: stop on a second press of the active binding.
+        (Toggle, RecordingThis, ActivationPress) => Stop,
+
+        // Hands-free: Enter stops whatever is recording; activation press is the safety stop.
+        // Note: in practice a StopKeyPress always has binding_id == "hands_free_stop", which
+        // never matches the active recording's id, so the coordinator classifies it as
+        // RecordingOther rather than RecordingThis. This arm is defensive symmetry — it
+        // ensures Stop is returned even in any future path where the ids could match.
+        (HandsFree, RecordingThis, StopKeyPress) => Stop,
+        (HandsFree, RecordingOther, StopKeyPress) => Stop,
+        (HandsFree, RecordingThis, ActivationPress) => Stop,
+
+        _ => Ignore,
+    }
+}
+
+#[cfg(test)]
+mod decide_tests {
+    use super::*;
+    use crate::settings::RecordingMode::*;
+
+    #[test]
+    fn hold_mode() {
+        assert_eq!(decide(Hold, StageKind::Idle, InputEvent::ActivationPress), Decision::Start);
+        assert_eq!(decide(Hold, StageKind::RecordingThis, InputEvent::ActivationRelease), Decision::Stop);
+        // press while recording does nothing in hold; release in idle does nothing
+        assert_eq!(decide(Hold, StageKind::RecordingThis, InputEvent::ActivationPress), Decision::Ignore);
+        assert_eq!(decide(Hold, StageKind::Idle, InputEvent::ActivationRelease), Decision::Ignore);
+    }
+
+    #[test]
+    fn toggle_mode() {
+        assert_eq!(decide(Toggle, StageKind::Idle, InputEvent::ActivationPress), Decision::Start);
+        assert_eq!(decide(Toggle, StageKind::RecordingThis, InputEvent::ActivationPress), Decision::Stop);
+        // releases are ignored in toggle; a different binding doesn't stop this one
+        assert_eq!(decide(Toggle, StageKind::RecordingThis, InputEvent::ActivationRelease), Decision::Ignore);
+        assert_eq!(decide(Toggle, StageKind::RecordingOther, InputEvent::ActivationPress), Decision::Ignore);
+    }
+
+    #[test]
+    fn hands_free_mode() {
+        assert_eq!(decide(HandsFree, StageKind::Idle, InputEvent::ActivationPress), Decision::Start);
+        // Enter stops whatever is recording
+        assert_eq!(decide(HandsFree, StageKind::RecordingThis, InputEvent::StopKeyPress), Decision::Stop);
+        assert_eq!(decide(HandsFree, StageKind::RecordingOther, InputEvent::StopKeyPress), Decision::Stop);
+        // activation press again is the safety stop
+        assert_eq!(decide(HandsFree, StageKind::RecordingThis, InputEvent::ActivationPress), Decision::Stop);
+        // releases ignored
+        assert_eq!(decide(HandsFree, StageKind::RecordingThis, InputEvent::ActivationRelease), Decision::Ignore);
+    }
+
+    #[test]
+    fn processing_always_ignores() {
+        for m in [Hold, Toggle, HandsFree] {
+            for e in [InputEvent::ActivationPress, InputEvent::ActivationRelease, InputEvent::StopKeyPress] {
+                assert_eq!(decide(m, StageKind::Processing, e), Decision::Ignore);
+            }
+        }
+    }
+
+    #[test]
+    fn stop_key_only_acts_in_hands_free() {
+        assert_eq!(decide(Hold, StageKind::RecordingThis, InputEvent::StopKeyPress), Decision::Ignore);
+        assert_eq!(decide(Toggle, StageKind::RecordingThis, InputEvent::StopKeyPress), Decision::Ignore);
+    }
 }
