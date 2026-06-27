@@ -8,6 +8,7 @@ import { Button } from "../../ui/Button";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { AppLanguageSelector } from "../AppLanguageSelector";
 import { LogDirectory } from "../debug";
+import { ResetDefaultsButton } from "../ResetDefaultsButton";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -86,6 +87,17 @@ export const AboutSettings: React.FC = () => {
           <div className="text-sm text-text-secondary">
             {t("settings.about.acknowledgments.whisper.details")}
           </div>
+        </SettingContainer>
+      </SettingsGroup>
+
+      {/* Reset lives at the very bottom, Fitts-distant from everyday controls. */}
+      <SettingsGroup title={t("settings.reset.title")}>
+        <SettingContainer
+          title={t("settings.reset.title")}
+          description={t("settings.reset.description")}
+          grouped={true}
+        >
+          <ResetDefaultsButton />
         </SettingContainer>
       </SettingsGroup>
     </div>

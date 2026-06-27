@@ -208,6 +208,18 @@ pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, Stri
     change_binding(app, id, binding.default_binding)
 }
 
+/// Reset every setting to its built-in default. Writes `get_default_settings()`
+/// to the store and returns it so the frontend can repopulate all controls.
+/// Models, history, and recordings live outside the settings store and are
+/// untouched.
+#[tauri::command]
+#[specta::specta]
+pub fn reset_settings_to_defaults(app: AppHandle) -> Result<crate::settings::AppSettings, String> {
+    let defaults = crate::settings::get_default_settings();
+    crate::settings::write_settings(&app, defaults.clone());
+    Ok(defaults)
+}
+
 /// Temporarily unregister a binding while the user is editing it in the UI.
 /// This avoids firing the action while keys are being recorded.
 #[tauri::command]

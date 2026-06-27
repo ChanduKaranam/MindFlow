@@ -389,6 +389,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::update_snippets,
             shortcut::suspend_binding,
             shortcut::resume_binding,
+            shortcut::reset_settings_to_defaults,
             shortcut::change_mute_while_recording_setting,
             shortcut::change_spoken_commands_setting,
             shortcut::change_number_conversion_setting,

@@ -642,6 +642,15 @@
           "details": "MindFlow uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors. MindFlow is built on Handy by cjpais."
         }
       }
+    },
+    "reset": {
+      "title": "Reset to Defaults",
+      "description": "Restore every setting to its original default. Your downloaded models and transcription history are not affected.",
+      "button": "Reset All Settings",
+      "confirm": {
+        "title": "Reset all settings?",
+        "message": "This restores every setting to its default value. Your downloaded models and transcription history will not be affected. This cannot be undone."
+      }
     }
   },
   "footer": {

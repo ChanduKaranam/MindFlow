@@ -1019,6 +1019,18 @@ mod tests {
         assert!(!settings.number_conversion_enabled);
     }
 
+    // `reset_settings_to_defaults` writes `get_default_settings()` and returns
+    // it, trusting the defaults to be deterministic. AppSettings does not derive
+    // PartialEq (its nested types would all have to), so we compare the JSON
+    // serialization of two fresh calls — equal output proves no field depends on
+    // time/randomness/global state, which is the contract reset relies on.
+    #[test]
+    fn default_settings_are_deterministic() {
+        let a = serde_json::to_value(get_default_settings()).unwrap();
+        let b = serde_json::to_value(get_default_settings()).unwrap();
+        assert_eq!(a, b);
+    }
+
     #[test]
     fn debug_output_redacts_api_keys() {
         let mut settings = get_default_settings();
