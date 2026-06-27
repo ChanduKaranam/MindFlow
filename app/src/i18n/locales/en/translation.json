@@ -651,6 +651,23 @@
         "title": "Reset all settings?",
         "message": "This restores every setting to its default value. Your downloaded models and transcription history will not be affected. This cannot be undone."
       }
+    },
+    "search": {
+      "placeholder": "Search settings…",
+      "inSection": "in {{section}}",
+      "noResults": "No matching settings",
+      "items": {
+        "hotkey": "Recording shortcut",
+        "microphone": "Microphone",
+        "handsFree": "Hands-free (push-to-talk)",
+        "spokenCommands": "Spoken commands",
+        "noiseSuppression": "Noise suppression",
+        "language": "Language & translation",
+        "dictionary": "Dictionary (custom words)",
+        "replacements": "Word replacements",
+        "snippets": "Snippets",
+        "model": "Speech model"
+      }
     }
   },
   "footer": {

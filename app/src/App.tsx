@@ -57,6 +57,10 @@ function App() {
   const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
+  // Bumped each time the user jumps to a section via settings search; drives a
+  // brief accent ring on the arrived content (Von Restorff arrival cue).
+  const [searchJumpNonce, setSearchJumpNonce] = useState(0);
+  const contentHighlightRef = useRef<HTMLDivElement>(null);
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
@@ -96,6 +100,21 @@ function App() {
       refreshOutputDevices();
     }
   }, [onboardingStep, refreshAudioDevices, refreshOutputDevices]);
+
+  // Briefly ring the content panel when the user arrives via settings search,
+  // drawing the eye to the jumped-to section (Von Restorff). Skips the initial
+  // render (nonce 0) and respects reduced motion via the CSS class itself.
+  useEffect(() => {
+    if (searchJumpNonce === 0) return;
+    const el = contentHighlightRef.current;
+    if (!el) return;
+    el.classList.add("search-jump-highlight");
+    const timer = setTimeout(
+      () => el.classList.remove("search-jump-highlight"),
+      1200,
+    );
+    return () => clearTimeout(timer);
+  }, [searchJumpNonce]);
 
   // Handle keyboard shortcuts for debug mode toggle
   useEffect(() => {
@@ -412,11 +431,15 @@ function App() {
         <Sidebar
           activeSection={currentSection}
           onSectionChange={setCurrentSection}
+          onSearchJump={() => setSearchJumpNonce((n) => n + 1)}
         />
         {/* Scrollable content area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col items-center p-4 gap-4">
+            <div
+              ref={contentHighlightRef}
+              className="flex flex-col items-center p-4 gap-4 rounded-lg"
+            >
               <AccessibilityPermissions />
               {renderSettingsContent(currentSection)}
             </div>

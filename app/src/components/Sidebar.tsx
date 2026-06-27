@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Cog, FlaskConical, History, Info, Sparkles, Cpu } from "lucide-react";
 import MindFlowLogo from "./icons/MindFlowLogo";
 import FlowMark from "./icons/FlowMark";
+import { SettingsSearch } from "./settings/SettingsSearch";
 import { useSettings } from "../hooks/useSettings";
 import {
   GeneralSettings,
@@ -79,11 +80,14 @@ export const SECTIONS_CONFIG = {
 interface SidebarProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
+  /** Fired when a section is reached via the search box (for the arrival cue). */
+  onSearchJump?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeSection,
   onSectionChange,
+  onSearchJump,
 }) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -95,6 +99,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="flex flex-col w-40 h-full border-e border-border items-center px-2">
       <MindFlowLogo width={120} className="m-4" />
+      <SettingsSearch
+        onJump={(section) => {
+          onSectionChange(section);
+          onSearchJump?.();
+        }}
+      />
       <div className="flex flex-col w-full items-center gap-1 pt-2 border-t border-border">
         {availableSections.map((section) => {
           const Icon = section.icon;
