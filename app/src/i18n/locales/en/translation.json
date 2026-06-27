@@ -253,7 +253,7 @@
       },
       "pushToTalk": {
         "label": "Push To Talk",
-        "description": "Hold to record, release to stop"
+        "description": "Hold the hotkey to record, release to stop. Turn this off for hands-free mode: press once to start, press again to stop."
       },
       "spokenCommands": {
         "label": "Spoken formatting commands",
