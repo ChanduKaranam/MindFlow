@@ -1,6 +1,6 @@
 [package]
 name = "handy"
-version = "0.8.3"
+version = "1.0.0"
 description = "MindFlow"
 authors = ["cjpais"]
 edition = "2021"
