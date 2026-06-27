@@ -353,7 +353,7 @@ pub fn run(cli_args: CliArgs) {
         .commands(collect_commands![
             shortcut::change_binding,
             shortcut::reset_binding,
-            shortcut::change_ptt_setting,
+            shortcut::change_recording_mode_setting,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,
@@ -389,6 +389,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::update_snippets,
             shortcut::suspend_binding,
             shortcut::resume_binding,
+            shortcut::reset_settings_to_defaults,
             shortcut::change_mute_while_recording_setting,
             shortcut::change_spoken_commands_setting,
             shortcut::change_number_conversion_setting,
@@ -405,6 +406,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::get_available_accelerators,
             shortcut::change_noise_suppression_setting,
             shortcut::change_vad_threshold_setting,
+            shortcut::set_onboarding_completed,
             shortcut::handy_keys::start_handy_keys_recording,
             shortcut::handy_keys::stop_handy_keys_recording,
             trigger_update_check,
@@ -556,7 +558,7 @@ pub fn run(cli_args: CliArgs) {
             // for portable mode (redirects WebView2 cache to portable Data dir)
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Handy")
+                    .title("MindFlow")
                     .inner_size(680.0, 570.0)
                     .min_inner_size(680.0, 570.0)
                     .resizable(true)

@@ -1,28 +1,95 @@
 @import "tailwindcss";
 
-@theme {
-  /* Design tokens */
-  --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-background-ui: #da5893;
-  --color-logo-primary: #faa2ca;
-  --color-logo-stroke: #382731;
-  --color-text-stroke: #f6f6f6;
-  --color-mid-gray: #808080;
+/* ─── Vendored fonts ──────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-Regular.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Geist-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/GeistMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./assets/fonts/Fraunces-Light.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Fraunces-Regular.woff2") format("woff2");
+}
+
+/* ─── Design tokens (Tailwind v4 @theme) — light-mode defaults ───────────── */
+
+@theme {
+  /* Colors — light mode (defaults; dark overridden in @media below) */
+  --color-background: #F7F7F8;
+  --color-surface: #FFFFFF;
+  --color-surface-high: #F0F0F2;
+  --color-text: #18181B;
+  --color-text-secondary: #52525B;
+  --color-border: #E4E4E7;
+  --color-accent: #E0A53F;
+  --color-accent-hover: #EBB54E;
+  --color-accent-pressed: #C68A2E;
+  --color-recording: #C68A2E;
+  --color-privacy: #059669;
+  --color-danger: #DC2626;
+  --color-on-accent: #1A1305;
+
+  /* Metallic-gold gradient tokens (§3.4.1) */
+  --gradient-gold: linear-gradient(135deg, #A9760F 0%, #E0A53F 28%, #FBE7A1 50%, #E0A53F 72%, #A9760F 100%);
+  --gradient-gold-hover: linear-gradient(135deg, #B98010 0%, #EBB54E 28%, #FFF1C2 50%, #EBB54E 72%, #B98010 100%);
+  --gold-edge-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --gold-edge-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.30);
+
+  /* Glass tokens — light defaults (§3.4.2) */
+  --glass-bg: rgba(255, 255, 255, 0.60);
+  --glass-blur: blur(18px) saturate(150%);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── :root — typography + derived tokens ────────────────────────────────── */
+
 :root {
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
   /* Typography */
   font-size: 15px;
   line-height: 24px;
   font-weight: 400;
-
-  /* Colors - Light Theme */
-  /* --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-logo-primary: #FAA2CA;
-  --color-logo-stroke: #382731;
-  --color-text-stroke: #f6f6f6; */
 
   /* Typography settings */
   font-synthesis: none;
@@ -57,17 +124,36 @@
   text-align: center;
 }
 
+/* ─── Dark mode overrides ─────────────────────────────────────────────────── */
+
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Colors - Dark Theme */
-    --color-text: #fbfbfb;
-    --color-background: #2c2b29;
-    --color-logo-primary: #f28cbb;
-    --color-logo-stroke: #fad1ed;
-    /* Just a bit darker than the (already dark) background, keeping its warm tint */
+    /* Colors — dark theme (§3.1 dark table) */
+    --color-background: #121212;
+    --color-surface: #1C1C22;
+    --color-surface-high: #26262E;
+    --color-text: #E6E6EA;
+    --color-text-secondary: #A1A1AA;
+    --color-border: #33333B;
+    --color-accent: #E0A53F;
+    --color-accent-hover: #EBB54E;
+    --color-accent-pressed: #C68A2E;
+    --color-recording: #F4CE6B;
+    --color-privacy: #34D399;
+    --color-danger: #F87171;
+    --color-on-accent: #121212;
+
+    /* Glass tokens — dark (§3.4.2) */
+    --glass-bg: rgba(28, 28, 34, 0.55);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.10);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+    /* Log surface — just a bit darker than the already dark background */
     --color-log-surface: color-mix(in srgb, var(--color-background), black 15%);
   }
 }
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
 
 /* macOS - tint native overlay scrollbar thumb */
 :root[data-platform="macos"] {
@@ -98,18 +184,147 @@
   background-color: var(--scrollbar-thumb-hover);
 }
 
-@layer utilities {
-  .text-stroke {
-    -webkit-text-stroke: 2px var(--color-text-stroke);
+/* ─── Material utilities (Task 3) ────────────────────────────────────────── */
+
+/* Glassmorphism surface */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Opaque fallback when backdrop-filter is unsupported (WKWebView / WebKitGTK) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--color-surface);
   }
 }
 
-.logo-primary {
-  fill: var(--color-logo-primary);
+/* Metallic gold button fill */
+.btn-gold {
+  background: var(--gradient-gold);
+  color: var(--color-on-accent);
+  box-shadow: var(--gold-edge-highlight), var(--gold-edge-shadow);
 }
 
-.logo-stroke {
-  fill: var(--color-logo-stroke);
-  stroke: var(--color-logo-stroke);
-  stroke-width: 1;
+.btn-gold:hover {
+  background: var(--gradient-gold-hover);
+}
+
+/* Gradient-clipped gold text */
+.gold-text {
+  background: var(--gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Metallic-gold toggle track when the peer checkbox is checked. Gives the
+   on-state the same reflective gradient + edge highlight as .btn-gold rather
+   than a flat accent fill. */
+.peer:checked ~ .gold-toggle {
+  background-color: transparent;
+  background-image: var(--gradient-gold);
+  box-shadow: var(--gold-edge-highlight), var(--gold-edge-shadow);
+}
+
+/* ─── Settings-search arrival cue (Von Restorff) ─────────────────────────── */
+
+/* Brief accent ring on the content panel when jumping via settings search.
+   Added/removed imperatively in App.tsx; the fade-out is purely cosmetic and
+   disabled under reduced-motion. */
+.search-jump-highlight {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  transition: outline-color 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-jump-highlight {
+    transition: none;
+  }
+}
+
+/* ─── Gold sheen sweep (hover, motion-safe only) ─────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.30) 50%,
+      transparent 65%
+    );
+    transform: translateX(-150%);
+    pointer-events: none;
+  }
+
+  .sheen:hover::after {
+    transform: translateX(150%);
+    transition: transform 600ms ease-out;
+  }
+}
+
+/* ─── Ambient glow keyframes (warm-gold drift, motion-safe only) ─────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ambient-drift-1 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    50% {
+      transform: translate(8%, -6%) scale(1.1);
+    }
+  }
+
+  @keyframes ambient-drift-2 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    40% {
+      transform: translate(-5%, 8%) scale(1.05);
+    }
+    80% {
+      transform: translate(6%, -4%) scale(0.92);
+    }
+  }
+
+  @keyframes ambient-drift-3 {
+    0%, 100% {
+      transform: translate(0%, 0%) scale(1);
+    }
+    35% {
+      transform: translate(-7%, -5%) scale(1.08);
+    }
+    70% {
+      transform: translate(4%, 7%) scale(0.95);
+    }
+  }
+
+  /* will-change lives here (motion-safe only) so reduced-motion systems
+     don't allocate compositor layers for animations that never run. */
+  .ambient-blob-1 {
+    animation: ambient-drift-1 18s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .ambient-blob-2 {
+    animation: ambient-drift-2 22s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .ambient-blob-3 {
+    animation: ambient-drift-3 26s ease-in-out infinite;
+    will-change: transform;
+  }
 }

@@ -5,14 +5,22 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ModelInfo } from "@/bindings";
 import type { ModelCardStatus } from "./ModelCard";
 import ModelCard from "./ModelCard";
-import HandyTextLogo from "../icons/HandyTextLogo";
+import MindFlowLogo from "../icons/MindFlowLogo";
+import OnboardingStepper from "./OnboardingStepper";
+import AmbientBackground from "../shared/AmbientBackground";
 import { useModelStore } from "../../stores/modelStore";
 
 interface OnboardingProps {
   onModelSelected: () => void;
+  stepIndex: number;
+  stepTotal: number;
 }
 
-const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
+const Onboarding: React.FC<OnboardingProps> = ({
+  onModelSelected,
+  stepIndex,
+  stepTotal,
+}) => {
   const { t } = useTranslation();
   const {
     models,
@@ -99,16 +107,23 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col p-6 gap-4 inset-0">
-      <div className="flex flex-col items-center gap-2 shrink-0">
-        <HandyTextLogo width={200} />
-        <p className="text-text/70 max-w-md font-medium mx-auto">
-          {t("onboarding.subtitle")}
-        </p>
-      </div>
+    <div className="relative min-h-screen flex items-center justify-center p-6">
+      <AmbientBackground />
 
-      <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col gap-4 pb-6">
+      <div
+        className="glass rounded-2xl p-8 w-full flex flex-col gap-6"
+        style={{ maxWidth: "560px", maxHeight: "calc(100vh - 3rem)" }}
+      >
+        <OnboardingStepper current={stepIndex} total={stepTotal} />
+
+        <div className="flex flex-col items-center gap-2 shrink-0">
+          <MindFlowLogo width={160} />
+          <p className="text-text-secondary max-w-md font-medium mx-auto text-center">
+            {t("onboarding.subtitle")}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4 overflow-y-auto min-h-0 text-center">
           {models
             .filter((m: ModelInfo) => !m.is_downloaded)
             .filter((model: ModelInfo) => model.is_recommended)
@@ -119,7 +134,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
               return (
                 <div key={model.id} className="relative">
                   {isRecommendedForCpu && (
-                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                    <div className="text-xs text-accent font-medium mb-1 text-start">
                       {t("onboarding.recommendedForYourPc")}
                     </div>
                   )}
@@ -151,7 +166,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
               return (
                 <div key={model.id} className="relative">
                   {isRecommendedForCpu && (
-                    <div className="text-xs text-logo-primary font-medium mb-1 text-start">
+                    <div className="text-xs text-accent font-medium mb-1 text-start">
                       {t("onboarding.recommendedForYourPc")}
                     </div>
                   )}

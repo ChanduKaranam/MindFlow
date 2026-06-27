@@ -77,6 +77,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               }
               variant="primary"
               size="md"
+              className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}
             </Button>
@@ -84,7 +85,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
         </SettingContainer>
         {customWords.length > 0 && (
           <div
-            className={`px-4 p-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"} flex flex-wrap gap-1`}
+            className={`px-4 p-2 ${grouped ? "" : "rounded-lg border border-border"} flex flex-wrap gap-1`}
           >
             {customWords.map((word) => (
               <Button

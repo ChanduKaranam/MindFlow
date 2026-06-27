@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { ShieldCheck } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsGroup } from "../../ui/SettingsGroup";
@@ -8,6 +9,7 @@ import { Button } from "../../ui/Button";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { AppLanguageSelector } from "../AppLanguageSelector";
 import { LogDirectory } from "../debug";
+import { ResetDefaultsButton } from "../ResetDefaultsButton";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -27,16 +29,16 @@ export const AboutSettings: React.FC = () => {
     fetchVersion();
   }, []);
 
-  const handleDonateClick = async () => {
-    try {
-      await openUrl("https://handy.computer/donate");
-    } catch (error) {
-      console.error("Failed to open donate link:", error);
-    }
-  };
-
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
+      {/* Quiet trust signal: reassure that everything runs on-device. */}
+      <div className="flex items-center gap-2 px-1">
+        <ShieldCheck size={16} className="text-privacy shrink-0" aria-hidden="true" />
+        <span className="text-sm text-text-secondary">
+          {t("settings.about.privacy")}
+        </span>
+      </div>
+
       <SettingsGroup title={t("settings.about.title")}>
         <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
         <SettingContainer
@@ -49,16 +51,6 @@ export const AboutSettings: React.FC = () => {
         </SettingContainer>
 
         <SettingContainer
-          title={t("settings.about.supportDevelopment.title")}
-          description={t("settings.about.supportDevelopment.description")}
-          grouped={true}
-        >
-          <Button variant="primary" size="md" onClick={handleDonateClick}>
-            {t("settings.about.supportDevelopment.button")}
-          </Button>
-        </SettingContainer>
-
-        <SettingContainer
           title={t("settings.about.sourceCode.title")}
           description={t("settings.about.sourceCode.description")}
           grouped={true}
@@ -66,7 +58,7 @@ export const AboutSettings: React.FC = () => {
           <Button
             variant="secondary"
             size="md"
-            onClick={() => openUrl("https://github.com/cjpais/Handy")}
+            onClick={() => openUrl("https://github.com/ChanduKaranam/MindFlow")}
           >
             {t("settings.about.sourceCode.button")}
           </Button>
@@ -83,9 +75,20 @@ export const AboutSettings: React.FC = () => {
           grouped={true}
           layout="stacked"
         >
-          <div className="text-sm text-mid-gray">
+          <div className="text-sm text-text-secondary">
             {t("settings.about.acknowledgments.whisper.details")}
           </div>
+        </SettingContainer>
+      </SettingsGroup>
+
+      {/* Reset lives at the very bottom, Fitts-distant from everyday controls. */}
+      <SettingsGroup title={t("settings.reset.title")}>
+        <SettingContainer
+          title={t("settings.reset.title")}
+          description={t("settings.reset.description")}
+          grouped={true}
+        >
+          <ResetDefaultsButton />
         </SettingContainer>
       </SettingsGroup>
     </div>

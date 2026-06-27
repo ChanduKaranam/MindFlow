@@ -23,7 +23,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
     self, get_settings, AutoSubmitKey, ClipboardHandling, KeyboardImplementation, LLMPrompt,
-    OverlayPosition, PasteMethod, ShortcutBinding, SoundTheme, TypingTool,
+    OverlayPosition, PasteMethod, RecordingMode, ShortcutBinding, SoundTheme, TypingTool,
     APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
@@ -71,6 +71,24 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
     match settings.keyboard_implementation {
         KeyboardImplementation::Tauri => tauri_impl::unregister_cancel_shortcut(app),
         KeyboardImplementation::HandyKeys => handy_keys::unregister_cancel_shortcut(app),
+    }
+}
+
+/// Register the hands-free stop shortcut (called when hands-free recording starts)
+pub fn register_handsfree_stop_shortcut(app: &AppHandle) {
+    let settings = get_settings(app);
+    match settings.keyboard_implementation {
+        KeyboardImplementation::Tauri => tauri_impl::register_handsfree_stop_shortcut(app),
+        KeyboardImplementation::HandyKeys => handy_keys::register_handsfree_stop_shortcut(app),
+    }
+}
+
+/// Unregister the hands-free stop shortcut (called when hands-free recording stops)
+pub fn unregister_handsfree_stop_shortcut(app: &AppHandle) {
+    let settings = get_settings(app);
+    match settings.keyboard_implementation {
+        KeyboardImplementation::Tauri => tauri_impl::unregister_handsfree_stop_shortcut(app),
+        KeyboardImplementation::HandyKeys => handy_keys::unregister_handsfree_stop_shortcut(app),
     }
 }
 
@@ -206,6 +224,23 @@ pub fn change_binding(
 pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
     let binding = settings::get_stored_binding(&app, &id);
     change_binding(app, id, binding.default_binding)
+}
+
+/// Reset every setting to its built-in default. Writes `get_default_settings()`
+/// to the store and returns it so the frontend can repopulate all controls.
+/// Models, history, and recordings live outside the settings store and are
+/// untouched — and the *active model selection* is preserved across the reset
+/// so transcription keeps working immediately (clearing it would leave the app
+/// with no loaded model, contradicting the "your models are not affected"
+/// promise even though the model files themselves survive on disk).
+#[tauri::command]
+#[specta::specta]
+pub fn reset_settings_to_defaults(app: AppHandle) -> Result<crate::settings::AppSettings, String> {
+    let current = crate::settings::get_settings(&app);
+    let mut defaults = crate::settings::get_default_settings();
+    defaults.selected_model = current.selected_model;
+    crate::settings::write_settings(&app, defaults.clone());
+    Ok(defaults)
 }
 
 /// Temporarily unregister a binding while the user is editing it in the UI.
@@ -473,9 +508,9 @@ fn initialize_handy_keys_with_rollback(app: &AppHandle) -> Result<bool, String> 
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn change_recording_mode_setting(app: AppHandle, mode: RecordingMode) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.push_to_talk = enabled;
+    settings.recording_mode = mode;
     settings::write_settings(&app, settings);
     Ok(())
 }
@@ -1227,5 +1262,14 @@ pub fn change_vad_threshold_setting(app: AppHandle, threshold: f32) -> Result<()
     let rm = app.state::<std::sync::Arc<crate::managers::audio::AudioRecordingManager>>();
     rm.rebuild_recorder()
         .map_err(|e| format!("Failed to rebuild recorder: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_onboarding_completed(app: AppHandle, completed: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.onboarding_completed = completed;
+    settings::write_settings(&app, settings);
     Ok(())
 }

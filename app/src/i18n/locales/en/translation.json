@@ -101,7 +101,7 @@
     },
     "permissions": {
       "title": "Permissions Required",
-      "description": "Handy needs a couple of permissions to work properly.",
+      "description": "MindFlow needs a couple of permissions to work properly.",
       "microphone": {
         "title": "Microphone Access",
         "description": "Required to hear your voice for transcription."
@@ -118,6 +118,64 @@
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
       }
+    },
+    "tryit": {
+      "title": "Try it now",
+      "prompt": "Hold {{hotkey}} and read this line aloud.",
+      "sample": "MindFlow turns my voice into text instantly.",
+      "listening": "Listening…",
+      "win": "You typed {{words}} words in {{seconds}}s — about {{factor}}× faster than typing.",
+      "continue": "Continue",
+      "skip": "Skip"
+    },
+    "stepper": {
+      "label": "Step {{current}} of {{total}}"
+    },
+    "welcome": {
+      "title": "Type at the speed of thought.",
+      "subtitle": "MindFlow turns your voice into text in any app — fully on your device.",
+      "trust": {
+        "local": "Your voice never leaves your device",
+        "noAccount": "No account",
+        "noCloud": "No cloud"
+      },
+      "cta": "Get started"
+    },
+    "primer": {
+      "microphone": {
+        "title": "Enable your microphone",
+        "body": "MindFlow needs your microphone so you can dictate into any app. Audio is processed on your device and never uploaded.",
+        "allow": "Allow microphone"
+      },
+      "accessibility": {
+        "title": "Enable Accessibility access",
+        "body": "MindFlow needs Accessibility access so it can type transcribed text into other apps.",
+        "steps": "Open System Settings → Privacy & Security → Accessibility, then enable MindFlow.",
+        "allow": "Open System Settings",
+        "stillOff": "Still off? Toggle MindFlow off and on again in the Accessibility list, then return here."
+      },
+      "skip": "Skip for now",
+      "granted": "Granted"
+    },
+    "features": {
+      "title": "What's included",
+      "handsFree": {
+        "title": "Hands-free mode",
+        "desc": "Toggle dictation on and keep talking — no key to hold. Find it in General settings."
+      },
+      "spokenCommands": {
+        "title": "Spoken commands",
+        "desc": "Say \"new line\", \"question mark\" and more to format as you speak. Toggle in General settings."
+      },
+      "dictionary": {
+        "title": "Dictionary",
+        "desc": "Teach MindFlow names and fix misheard words with custom words, replacements and snippets. In Advanced settings."
+      },
+      "noiseSuppression": {
+        "title": "Noise suppression",
+        "desc": "Clean up background noise before transcription. Toggle in General settings."
+      },
+      "cta": "Start using MindFlow"
     }
   },
   "modelSelector": {
@@ -159,7 +217,7 @@
     "general": {
       "title": "General",
       "shortcut": {
-        "title": "Handy Shortcuts",
+        "title": "MindFlow Shortcuts",
         "description": "Configure keyboard shortcuts to trigger speech-to-text recording",
         "loading": "Loading shortcuts...",
         "none": "No shortcuts configured",
@@ -193,9 +251,12 @@
         "noResults": "No languages found",
         "auto": "Auto"
       },
-      "pushToTalk": {
-        "label": "Push To Talk",
-        "description": "Hold to record, release to stop"
+      "recordingMode": {
+        "title": "Recording mode",
+        "description": "How the activation shortcut controls recording.",
+        "hold": "Hold to talk",
+        "toggle": "Toggle (press to start and stop)",
+        "handsFree": "Hands-free (press to start, Enter to stop)"
       },
       "spokenCommands": {
         "label": "Spoken formatting commands",
@@ -294,11 +355,11 @@
       },
       "autostart": {
         "label": "Launch on Startup",
-        "description": "Automatically start Handy when you log in to your computer."
+        "description": "Automatically start MindFlow when you log in to your computer."
       },
       "showTrayIcon": {
         "label": "Show Tray Icon",
-        "description": "Display the Handy icon in the system tray."
+        "description": "Display the MindFlow icon in the system tray."
       },
       "overlay": {
         "title": "Overlay Position",
@@ -492,7 +553,7 @@
       },
       "updateChecks": {
         "label": "Check for Updates",
-        "description": "Automatically check for new versions of Handy"
+        "description": "Automatically check for new versions of MindFlow"
       },
       "soundTheme": {
         "label": "Sound Theme",
@@ -558,31 +619,53 @@
     },
     "about": {
       "title": "About",
+      "privacy": "100% local — your audio never leaves your device.",
       "version": {
         "title": "Version",
-        "description": "Current version of Handy"
+        "description": "Current version of MindFlow"
       },
       "appDataDirectory": {
         "title": "App Data Directory",
-        "description": "Location where Handy stores its data"
+        "description": "Location where MindFlow stores its data"
       },
       "sourceCode": {
         "title": "Source Code",
         "description": "View source code and contribute",
         "button": "View on GitHub"
       },
-      "supportDevelopment": {
-        "title": "Support Development",
-        "description": "Help us continue building Handy",
-        "button": "Donate"
-      },
       "acknowledgments": {
         "title": "Acknowledgments",
         "whisper": {
           "title": "Whisper.cpp",
           "description": "High-performance inference of OpenAI's Whisper automatic speech recognition model",
-          "details": "Handy uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors."
+          "details": "MindFlow uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors. MindFlow is built on Handy by cjpais."
         }
+      }
+    },
+    "reset": {
+      "title": "Reset to Defaults",
+      "description": "Restore every setting to its original default. Your downloaded models and transcription history are not affected.",
+      "button": "Reset All Settings",
+      "confirm": {
+        "title": "Reset all settings?",
+        "message": "This restores every setting to its default value. Your downloaded models and transcription history will not be affected. This cannot be undone."
+      }
+    },
+    "search": {
+      "placeholder": "Search…",
+      "inSection": "in {{section}}",
+      "noResults": "No matching settings",
+      "items": {
+        "hotkey": "Recording shortcut",
+        "microphone": "Microphone",
+        "handsFree": "Recording mode",
+        "spokenCommands": "Spoken commands",
+        "noiseSuppression": "Noise suppression",
+        "language": "Language & translation",
+        "dictionary": "Dictionary (custom words)",
+        "replacements": "Word replacements",
+        "snippets": "Snippets",
+        "model": "Speech model"
       }
     }
   },
@@ -629,7 +712,7 @@
   },
   "accessibility": {
     "permissionsRequired": "Accessibility Permissions Required",
-    "permissionsDescription": "Handy needs accessibility permissions to type transcribed text.",
+    "permissionsDescription": "MindFlow needs accessibility permissions to type transcribed text.",
     "openSettings": "Open System Settings",
     "dismiss": "Dismiss"
   },
@@ -652,7 +735,7 @@
   },
   "appLanguage": {
     "title": "Application Language",
-    "description": "Change the language of the Handy interface"
+    "description": "Change the language of the MindFlow interface"
   },
   "overlay": {
     "transcribing": "Transcribing...",

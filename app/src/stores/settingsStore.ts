@@ -7,6 +7,7 @@ import type {
   WhisperAcceleratorSetting,
   OrtAcceleratorSetting,
   Replacement,
+  RecordingMode,
 } from "@/bindings";
 import { commands } from "@/bindings";
 
@@ -89,7 +90,8 @@ const settingUpdaters: {
     commands.changeAutostartSetting(value as boolean),
   update_checks_enabled: (value) =>
     commands.changeUpdateChecksSetting(value as boolean),
-  push_to_talk: (value) => commands.changePttSetting(value as boolean),
+  recording_mode: (value) =>
+    commands.changeRecordingModeSetting(value as RecordingMode),
   selected_microphone: (value) =>
     commands.setSelectedMicrophone(
       (value as string) === "Default" || value === null
@@ -166,6 +168,8 @@ const settingUpdaters: {
     commands.changeNoiseSuppressionSetting(value as boolean),
   vad_threshold: (value) =>
     commands.changeVadThresholdSetting(value as number),
+  onboarding_completed: (value) =>
+    commands.setOnboardingCompleted(value as boolean),
 };
 
 export const useSettingsStore = create<SettingsStore>()(

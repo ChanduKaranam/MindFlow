@@ -37,9 +37,19 @@ pub fn handle_shortcut_event(
     // Transcribe bindings are handled by the coordinator.
     if is_transcribe_binding(binding_id) {
         if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
-            coordinator.send_input(binding_id, hotkey_string, is_pressed, settings.push_to_talk);
+            coordinator.send_input(binding_id, hotkey_string, is_pressed, settings.recording_mode);
         } else {
             warn!("TranscriptionCoordinator is not initialized");
+        }
+        return;
+    }
+
+    // Hands-free stop key (e.g. Enter): forward to the coordinator on press.
+    if binding_id == "hands_free_stop" {
+        if is_pressed {
+            if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+                coordinator.send_input(binding_id, hotkey_string, true, settings.recording_mode);
+            }
         }
         return;
     }
