@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onSearchJump?.();
         }}
       />
-      <div className="flex flex-col w-full items-center gap-1 pt-2 border-t border-border">
+      <div className="flex flex-col w-full items-center gap-1 mt-3 pt-3 border-t border-border">
         {availableSections.map((section) => {
           const Icon = section.icon;
           const isActive = activeSection === section.id;
@@ -120,7 +120,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
               onClick={() => onSectionChange(section.id)}
             >
-              <Icon width={24} height={24} className="shrink-0" />
+              {/* On the active item the background is gold, so darken the glyph
+                  to a dark silhouette (the gold FlowMark raster ignores text
+                  colour); inactive items keep their normal colour. */}
+              <Icon
+                width={24}
+                height={24}
+                className={`shrink-0 ${isActive ? "brightness-0" : ""}`}
+              />
               <p
                 className="text-sm font-medium truncate"
                 title={t(section.labelKey)}
