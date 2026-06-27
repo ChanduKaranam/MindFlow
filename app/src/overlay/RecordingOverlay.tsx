@@ -1,11 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  MicrophoneIcon,
-  TranscriptionIcon,
-  CancelIcon,
-} from "../components/icons";
+import { Brain, X } from "lucide-react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
@@ -62,20 +58,24 @@ const RecordingOverlay: React.FC = () => {
     setupEventListeners();
   }, []);
 
-  const getIcon = () => {
-    if (state === "recording") {
-      return <MicrophoneIcon />;
-    } else {
-      return <TranscriptionIcon />;
-    }
-  };
+  const isRecording = state === "recording";
 
   return (
     <div
       dir={direction}
-      className={`recording-overlay ${isVisible ? "fade-in" : ""}`}
+      className={`recording-overlay ${isVisible ? "fade-in" : ""} ${
+        isRecording ? "is-live" : ""
+      }`}
     >
-      <div className="overlay-left">{getIcon()}</div>
+      <div className="overlay-left">
+        {/* Flow Mark glyph — gold brain (mind), crisp vector so it stays sharp
+            at this tiny size. Pulses while live, shimmers while thinking. */}
+        <Brain
+          size={20}
+          strokeWidth={2}
+          className={`overlay-glyph ${isRecording ? "is-recording" : "is-thinking"}`}
+        />
+      </div>
 
       <div className="overlay-middle">
         {state === "recording" && (
@@ -109,7 +109,7 @@ const RecordingOverlay: React.FC = () => {
               commands.cancelOperation();
             }}
           >
-            <CancelIcon />
+            <X size={16} strokeWidth={2.5} className="overlay-cancel-icon" />
           </div>
         )}
       </div>
