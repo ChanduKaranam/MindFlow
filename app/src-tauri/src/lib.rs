@@ -5,7 +5,7 @@ mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
 pub mod cli;
-mod replace;
+pub mod replace;
 mod clipboard;
 mod commands;
 mod format;
