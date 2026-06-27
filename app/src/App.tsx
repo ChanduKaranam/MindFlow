@@ -11,7 +11,13 @@ import { ModelStateEvent, RecordingErrorEvent } from "./lib/types/events";
 import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
 import Footer from "./components/footer";
-import Onboarding, { AccessibilityOnboarding } from "./components/onboarding";
+import Onboarding, {
+  AccessibilityOnboarding,
+  WelcomeStep,
+  PermissionPrimer,
+  TryItNowStep,
+  FeatureIntro,
+} from "./components/onboarding";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
@@ -23,7 +29,14 @@ const DevInject = import.meta.env.DEV
   ? lazy(() => import("./components/DevInject"))
   : null;
 
-type OnboardingStep = "accessibility" | "model" | "done";
+type OnboardingStep =
+  | "welcome"
+  | "microphone"
+  | "accessibility"
+  | "model"
+  | "tryit"
+  | "features"
+  | "done";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -39,6 +52,9 @@ function App() {
   // Track if this is a returning user who just needs to grant permissions
   // (vs a new user who needs full onboarding including model selection)
   const [isReturningUser, setIsReturningUser] = useState(false);
+  // Platform is resolved once during onboarding status check so the step
+  // sequence and progress count can branch on it without re-querying.
+  const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
   const { settings, updateSetting } = useSettings();
@@ -60,9 +76,15 @@ function App() {
     initializeRTL(i18n.language);
   }, [i18n.language]);
 
-  // Initialize Enigo, shortcuts, and refresh audio devices when main app loads
+  // Initialize Enigo, shortcuts, and refresh audio devices when main app loads.
+  // Also fire at the "tryit" step so the global hotkey is live for the
+  // hands-on demo (the peak-end moment) before onboarding formally completes.
+  // The ref guards against re-running on the later "features"/"done" steps.
   useEffect(() => {
-    if (onboardingStep === "done" && !hasCompletedPostOnboardingInit.current) {
+    if (
+      (onboardingStep === "tryit" || onboardingStep === "done") &&
+      !hasCompletedPostOnboardingInit.current
+    ) {
       hasCompletedPostOnboardingInit.current = true;
       Promise.all([
         commands.initializeEnigo(),
@@ -171,13 +193,29 @@ function App() {
   };
 
   const checkOnboardingStatus = async () => {
+    // Resolve platform up front so the step sequence is well-defined even if a
+    // later async call throws and we fall back to the welcome flow.
+    const currentPlatform = platform();
+    setDetectedPlatform(currentPlatform);
+
     try {
       // Check if they have any models available
       const result = await commands.hasAnyModelsAvailable();
       const hasModels = result.status === "ok" && result.data;
-      const currentPlatform = platform();
 
-      if (hasModels) {
+      // Has the user already completed the guided first-run flow? If so we
+      // never send them back through it, even if their models were removed.
+      let onboardingCompleted = false;
+      try {
+        const settingsResult = await commands.getAppSettings();
+        if (settingsResult.status === "ok") {
+          onboardingCompleted = settingsResult.data.onboarding_completed ?? false;
+        }
+      } catch (e) {
+        console.warn("Failed to read onboarding_completed flag:", e);
+      }
+
+      if (hasModels || onboardingCompleted) {
         // Returning user - check if they need to grant permissions first
         setIsReturningUser(true);
 
@@ -218,38 +256,132 @@ function App() {
 
         setOnboardingStep("done");
       } else {
-        // New user - start full onboarding
+        // New user - start the full guided first-run flow
         setIsReturningUser(false);
-        setOnboardingStep("accessibility");
+        setOnboardingStep("welcome");
       }
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
-      setOnboardingStep("accessibility");
+      // On hard failure, treat as a new user and start the guided flow.
+      setIsReturningUser(false);
+      setOnboardingStep("welcome");
     }
   };
 
+  // ─── New-user guided flow transitions ──────────────────────────────────
+  const handleWelcomeContinue = () => setOnboardingStep("microphone");
+
+  const handleMicrophoneDone = () =>
+    setOnboardingStep(detectedPlatform === "macos" ? "accessibility" : "model");
+
+  const handleAccessibilityPrimerDone = () => setOnboardingStep("model");
+
+  const handleTryItDone = () => setOnboardingStep("features");
+
+  const handleFeaturesFinish = async () => {
+    try {
+      await commands.setOnboardingCompleted(true);
+    } catch (e) {
+      console.warn("Failed to persist onboarding_completed:", e);
+    }
+    setOnboardingStep("done");
+  };
+
+  // Returning-user permission-repair path (AccessibilityOnboarding).
   const handleAccessibilityComplete = () => {
-    // Returning users already have models, skip to main app
-    // New users need to select a model
+    // Returning users already have models, skip to main app.
+    // (New users reach the model step via the primer flow, not this handler.)
     setOnboardingStep(isReturningUser ? "done" : "model");
   };
 
   const handleModelSelected = () => {
-    // Transition to main app - user has started a download
-    setOnboardingStep("done");
+    // Model download started — advance to the hands-on demo (peak-end moment).
+    setOnboardingStep("tryit");
   };
+
+  // Step numbering for the progress indicator. macOS has an extra
+  // accessibility step; the try-it and features screens share the final slot.
+  const isMacOnboarding = detectedPlatform === "macos";
+  const stepTotal = isMacOnboarding ? 5 : 4;
+  const modelStepIndex = isMacOnboarding ? 4 : 3;
+  const finalStepIndex = isMacOnboarding ? 5 : 4;
+  const transcribeHotkey = settings?.bindings?.transcribe?.current_binding ?? "";
 
   // Still checking onboarding status
   if (onboardingStep === null) {
     return null;
   }
 
+  if (onboardingStep === "welcome") {
+    return (
+      <WelcomeStep
+        onContinue={handleWelcomeContinue}
+        stepIndex={1}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
+  if (onboardingStep === "microphone") {
+    return (
+      <PermissionPrimer
+        kind="microphone"
+        onGranted={handleMicrophoneDone}
+        onSkip={handleMicrophoneDone}
+        stepIndex={2}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
   if (onboardingStep === "accessibility") {
-    return <AccessibilityOnboarding onComplete={handleAccessibilityComplete} />;
+    // Returning users repairing permissions get the combined repair screen;
+    // new users get the explain-before-prompt accessibility primer.
+    if (isReturningUser) {
+      return (
+        <AccessibilityOnboarding onComplete={handleAccessibilityComplete} />
+      );
+    }
+    return (
+      <PermissionPrimer
+        kind="accessibility"
+        onGranted={handleAccessibilityPrimerDone}
+        onSkip={handleAccessibilityPrimerDone}
+        stepIndex={3}
+        stepTotal={stepTotal}
+      />
+    );
   }
 
   if (onboardingStep === "model") {
-    return <Onboarding onModelSelected={handleModelSelected} />;
+    return (
+      <Onboarding
+        onModelSelected={handleModelSelected}
+        stepIndex={modelStepIndex}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
+  if (onboardingStep === "tryit") {
+    return (
+      <TryItNowStep
+        hotkey={transcribeHotkey}
+        onDone={handleTryItDone}
+        stepIndex={finalStepIndex}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
+  if (onboardingStep === "features") {
+    return (
+      <FeatureIntro
+        onFinish={handleFeaturesFinish}
+        stepIndex={finalStepIndex}
+        stepTotal={stepTotal}
+      />
+    );
   }
 
   return (
