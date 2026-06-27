@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast, Toaster } from "sonner";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
@@ -24,11 +24,6 @@ import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
-
-// DEV-ONLY: M1 injection harness — tree-shaken out of production builds.
-const DevInject = import.meta.env.DEV
-  ? lazy(() => import("./components/DevInject"))
-  : null;
 
 type OnboardingStep =
   | "welcome"
@@ -424,12 +419,6 @@ function App() {
           },
         }}
       />
-      {/* DEV-ONLY: M1 injection harness */}
-      {DevInject && (
-        <Suspense fallback={null}>
-          <DevInject />
-        </Suspense>
-      )}
       {/* Main content area that takes remaining space */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
