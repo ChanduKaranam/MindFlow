@@ -37,13 +37,14 @@ const SEARCH_INDEX: IndexEntry[] = [
     id: "handsFree",
     section: "general",
     keywords: [
+      "recording mode",
       "hands free",
       "hands-free",
       "push to talk",
       "ptt",
+      "hold",
       "toggle",
-      "recording mode",
-      "always on",
+      "enter to stop",
     ],
   },
   {
@@ -150,8 +151,14 @@ export const SettingsSearch: React.FC<Props> = ({ onJump }) => {
         />
       </div>
 
+      {/* Dropdown is opaque (not glass) and wider than the narrow sidebar so it
+          overflows to the right over the content — keeps result titles on one
+          line and avoids the sidebar nav bleeding through behind it. */}
       {showDropdown && (
-        <div className="absolute start-2 end-2 top-full mt-1 z-20 glass rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div
+          className="absolute start-2 top-full mt-1 z-30 w-64 bg-surface border border-border shadow-xl rounded-lg overflow-y-auto overflow-x-hidden"
+          style={{ maxHeight: "calc(100vh - 220px)" }}
+        >
           {results.length === 0 ? (
             <p className="px-3 py-2 text-sm text-text-secondary">
               {t("settings.search.noResults")}
@@ -162,12 +169,12 @@ export const SettingsSearch: React.FC<Props> = ({ onJump }) => {
                 key={entry.id}
                 type="button"
                 onClick={() => handleSelect(entry)}
-                className="w-full text-start px-3 py-2 hover:bg-surface-high transition-colors cursor-pointer flex flex-col"
+                className="w-full min-w-0 text-start px-3 py-2 hover:bg-surface-high transition-colors cursor-pointer flex flex-col gap-0.5"
               >
-                <span className="text-sm text-text font-medium">
+                <span className="block truncate text-sm text-text font-medium">
                   {t(`settings.search.items.${entry.id}`)}
                 </span>
-                <span className="text-xs text-text-secondary">
+                <span className="block truncate text-xs text-text-secondary">
                   {t("settings.search.inSection", {
                     section: t(`sidebar.${entry.section}`),
                   })}

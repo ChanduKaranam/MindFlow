@@ -652,13 +652,13 @@
       }
     },
     "search": {
-      "placeholder": "Search settings…",
+      "placeholder": "Search…",
       "inSection": "in {{section}}",
       "noResults": "No matching settings",
       "items": {
         "hotkey": "Recording shortcut",
         "microphone": "Microphone",
-        "handsFree": "Hands-free (push-to-talk)",
+        "handsFree": "Recording mode",
         "spokenCommands": "Spoken commands",
         "noiseSuppression": "Noise suppression",
         "language": "Language & translation",

@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
 
   return (
-    <div className="glass flex flex-col w-40 h-full items-center px-2">
+    <div className="glass relative z-40 flex flex-col w-40 h-full items-center px-2">
       <MindFlowLogo width={120} className="m-4" />
       <SettingsSearch
         onJump={(section) => {
