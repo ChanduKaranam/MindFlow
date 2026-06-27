@@ -59,8 +59,8 @@ export default function AmbientBackground({ className }: Props) {
           bottom: "-20%",
           left: "-10%",
           background:
-            "radial-gradient(ellipse at center, rgba(224,165,63,0.18) 0%, rgba(169,118,15,0.08) 50%, transparent 70%)",
-          filter: "blur(60px)",
+            "radial-gradient(ellipse at center, rgba(224,165,63,0.34) 0%, rgba(169,118,15,0.16) 50%, transparent 72%)",
+          filter: "blur(55px)",
         }}
       />
       {/* Glow 2 — upper-right, warm specular amber */}
@@ -74,8 +74,8 @@ export default function AmbientBackground({ className }: Props) {
           top: "-15%",
           right: "-5%",
           background:
-            "radial-gradient(ellipse at center, rgba(251,231,161,0.12) 0%, rgba(224,165,63,0.06) 55%, transparent 75%)",
-          filter: "blur(70px)",
+            "radial-gradient(ellipse at center, rgba(251,231,161,0.24) 0%, rgba(224,165,63,0.12) 55%, transparent 76%)",
+          filter: "blur(65px)",
         }}
       />
       {/* Glow 3 — centre, deep pressed-gold depth */}
@@ -89,8 +89,8 @@ export default function AmbientBackground({ className }: Props) {
           top: "30%",
           left: "30%",
           background:
-            "radial-gradient(ellipse at center, rgba(198,138,46,0.10) 0%, rgba(169,118,15,0.04) 60%, transparent 80%)",
-          filter: "blur(80px)",
+            "radial-gradient(ellipse at center, rgba(198,138,46,0.20) 0%, rgba(169,118,15,0.09) 60%, transparent 80%)",
+          filter: "blur(75px)",
         }}
       />
     </div>

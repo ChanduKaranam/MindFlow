@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={section.id}
               className={`flex gap-2 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-accent/80"
+                  ? "btn-gold sheen"
                   : "hover:bg-surface-high hover:opacity-100 opacity-85"
               }`}
               onClick={() => onSectionChange(section.id)}

@@ -77,6 +77,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               }
               variant="primary"
               size="md"
+              className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}
             </Button>

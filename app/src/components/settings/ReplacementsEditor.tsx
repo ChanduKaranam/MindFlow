@@ -72,6 +72,7 @@ export const ReplacementsEditor: React.FC<ReplacementsEditorProps> = React.memo(
               variant="compact"
               disabled={isUpdating("replacements")}
               onKeyDown={handleKeyDown}
+              className="flex-1 min-w-0"
             />
             <Input
               type="text"
@@ -81,12 +82,14 @@ export const ReplacementsEditor: React.FC<ReplacementsEditorProps> = React.memo(
               variant="compact"
               disabled={isUpdating("replacements")}
               onKeyDown={handleKeyDown}
+              className="flex-1 min-w-0"
             />
             <Button
               onClick={handleAdd}
               disabled={!from.trim() || isUpdating("replacements")}
               variant="primary"
               size="md"
+              className="shrink-0"
             >
               {t("settings.advanced.replacements.add")}
             </Button>

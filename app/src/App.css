@@ -221,6 +221,15 @@
   color: transparent;
 }
 
+/* Metallic-gold toggle track when the peer checkbox is checked. Gives the
+   on-state the same reflective gradient + edge highlight as .btn-gold rather
+   than a flat accent fill. */
+.peer:checked ~ .gold-toggle {
+  background-color: transparent;
+  background-image: var(--gradient-gold);
+  box-shadow: var(--gold-edge-highlight), var(--gold-edge-shadow);
+}
+
 /* ─── Settings-search arrival cue (Von Restorff) ─────────────────────────── */
 
 /* Brief accent ring on the content panel when jumping via settings search.
