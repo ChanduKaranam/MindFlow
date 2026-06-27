@@ -311,6 +311,23 @@ async resumeBinding(id: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Reset every setting to its built-in default. Writes `get_default_settings()`
+ * to the store and returns it so the frontend can repopulate all controls.
+ * Models, history, and recordings live outside the settings store and are
+ * untouched — and the *active model selection* is preserved across the reset
+ * so transcription keeps working immediately (clearing it would leave the app
+ * with no loaded model, contradicting the "your models are not affected"
+ * promise even though the model files themselves survive on disk).
+ */
+async resetSettingsToDefaults() : Promise<Result<AppSettings, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reset_settings_to_defaults") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeMuteWhileRecordingSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_mute_while_recording_setting", { enabled }) };
@@ -525,14 +542,6 @@ async getAppDirPath() : Promise<Result<string, string>> {
 async getAppSettings() : Promise<Result<AppSettings, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_app_settings") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async resetSettingsToDefaults() : Promise<Result<AppSettings, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("reset_settings_to_defaults") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
