@@ -27,15 +27,20 @@ The final checklist before tagging and publishing **MindFlow v1.0.0**. Do not ta
 - [ ] Updater `pubkey` present and `endpoints` point at the MindFlow releases (sanity check; unchanged).
 - [ ] `productName` / bundle identifier are MindFlow / `com.mindflow.app` (already set in M5).
 
-## Artifacts
-- [ ] Per-OS release bundles built (`bun run tauri build`) and launch-tested (covered by the runbook):
-  - [ ] Windows installer (`nsis`/`msi`)
-  - [ ] macOS `.dmg`
-  - [ ] Linux `.AppImage` (and/or `.deb`)
+## Artifacts (automated)
+The `.github/workflows/release.yml` workflow builds installers on a 3-OS matrix
+and uploads them to a **draft** GitHub Release when a `v*` tag is pushed:
+- [ ] `git tag v1.0.0 && git push origin v1.0.0` → workflow runs green on all 3 OSes.
+- [ ] Draft release contains: Windows `.exe` (NSIS) + `.msi`, macOS `.dmg` (Apple Silicon), Linux `.AppImage`.
+- [ ] Each installer launch-tested (covered by the 3-OS runbook).
+
+> Builds are **unsigned** (the upstream Windows signCommand was removed and
+> `createUpdaterArtifacts` is off). Code signing + auto-update are a future
+> setup needing your own certs/keys.
 
 ## Release
 - [ ] Changelog / release notes drafted (highlights: fully-local CPU dictation, hands-free Enter-to-stop, dictionary/snippets, MindFlow identity).
-- [ ] Tag `v1.0.0` and publish the GitHub release with the artifacts.
+- [ ] Review the draft release assets, then **Publish** it → others can download the installers.
 
 ---
 

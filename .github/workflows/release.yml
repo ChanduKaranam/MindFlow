@@ -1,0 +1,81 @@
+name: release
+
+# Build native installers on every `v*` tag and publish them to a GitHub
+# Release (created as a DRAFT — review the assets, then click Publish).
+#
+# Produces: Windows .exe (NSIS) + .msi, macOS .dmg (Apple Silicon), Linux
+# .AppImage. Builds are UNSIGNED — see the release notes. Code signing +
+# auto-update (updater artifacts) are a separate future setup that needs your
+# own certs/keys; `createUpdaterArtifacts` is off and the upstream Windows
+# signCommand was removed so unsigned CI builds succeed.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # Some vendored cmake projects (whisper.cpp) trip newer CMake's policy floor.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux system deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev cmake libclang-dev \
+            libasound2-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libgtk-layer-shell0 libgtk-layer-shell-dev \
+            libxdo-dev patchelf
+
+      # The VAD + denoiser ONNX models are gitignored but bundled into the app
+      # (resources/**/*). Download them at build time so the installer ships a
+      # working recording pipeline. (Build-time only — does not affect the
+      # app's runtime zero-network guarantee.)
+      - name: Fetch bundled models (Silero VAD + GTCRN denoiser)
+        shell: bash
+        run: |
+          mkdir -p src-tauri/resources/models
+          curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
+            https://github.com/snakers4/silero-vad/raw/v6.0/src/silero_vad/data/silero_vad.onnx
+          curl -L -o src-tauri/resources/models/gtcrn_simple.onnx \
+            https://github.com/Xiaobin-Rong/gtcrn/raw/main/stream/onnx_models/gtcrn_simple.onnx
+
+      - name: Install frontend deps
+        run: bun install
+
+      - name: Build + publish installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "MindFlow ${{ github.ref_name }}"
+          releaseBody: |
+            MindFlow — free, fully-local, CPU-only voice dictation.
+
+            **Downloads:** Windows `.exe` (NSIS installer) / `.msi`, macOS `.dmg` (Apple Silicon), Linux `.AppImage`.
+
+            > These builds are **unsigned**. On Windows, SmartScreen may say "unknown publisher" — click *More info → Run anyway*. On macOS, right-click the app → *Open* the first time.
+          releaseDraft: true
+          prerelease: false
