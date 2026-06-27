@@ -7,4 +7,7 @@ node_modules/
 app/src-tauri/target/
 app/node_modules/
 app/dist/
-models/
+# ML model blobs (VAD/denoiser bundled at build, STT downloaded at runtime).
+# Scoped to the resources path so it does NOT also ignore source dirs named
+# "models" (e.g. app/src/components/settings/models/).
+app/src-tauri/resources/models/
