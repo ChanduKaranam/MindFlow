@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { ShieldCheck } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsGroup } from "../../ui/SettingsGroup";
@@ -38,6 +39,14 @@ export const AboutSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
+      {/* Quiet trust signal: reassure that everything runs on-device. */}
+      <div className="flex items-center gap-2 px-1">
+        <ShieldCheck size={16} className="text-privacy shrink-0" aria-hidden="true" />
+        <span className="text-sm text-text-secondary">
+          {t("settings.about.privacy")}
+        </span>
+      </div>
+
       <SettingsGroup title={t("settings.about.title")}>
         <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
         <SettingContainer

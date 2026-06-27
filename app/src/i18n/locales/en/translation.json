@@ -616,6 +616,7 @@
     },
     "about": {
       "title": "About",
+      "privacy": "100% local — your audio never leaves your device.",
       "version": {
         "title": "Version",
         "description": "Current version of MindFlow"

@@ -10,6 +10,7 @@ import {
 import { ModelStateEvent, RecordingErrorEvent } from "./lib/types/events";
 import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
+import AmbientBackground from "./components/shared/AmbientBackground";
 import Footer from "./components/footer";
 import Onboarding, {
   AccessibilityOnboarding,
@@ -408,6 +409,9 @@ function App() {
       dir={direction}
       className="h-screen flex flex-col select-none cursor-default"
     >
+      {/* Ambient glow drifting behind the frosted sidebar + settings cards.
+          Fixed + z-index:-1, so it sits behind all chrome in both themes. */}
+      <AmbientBackground />
       <Toaster
         theme="system"
         toastOptions={{
