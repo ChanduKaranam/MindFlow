@@ -360,6 +360,53 @@ pub(crate) struct ProcessedTranscription {
     pub post_process_prompt: Option<String>,
 }
 
+/// Deterministic (non-LLM, non-network) text pipeline stages, in order.
+/// Pure so it can be unit-tested without an AppHandle.
+pub(crate) fn apply_rule_stages(text: &str, settings: &AppSettings) -> String {
+    let mut t = text.to_string();
+    if !settings.custom_words.is_empty() && settings.word_correction_threshold > 0.0 {
+        t = crate::audio_toolkit::apply_custom_words(
+            &t,
+            &settings.custom_words,
+            settings.word_correction_threshold,
+        );
+    }
+    t = crate::audio_toolkit::filter_transcription_output(
+        &t,
+        &settings.app_language,
+        &settings.custom_filler_words,
+    );
+    let spoken_cfg = crate::format::SpokenCommandsConfig {
+        enabled: settings.spoken_commands_enabled,
+        number_conversion: settings.number_conversion_enabled,
+    };
+    crate::format::apply_spoken_commands(&t, &spoken_cfg)
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use super::*;
+    use crate::settings::get_default_settings;
+
+    #[test]
+    fn rule_stages_correct_names_for_any_engine() {
+        let mut settings = get_default_settings();
+        // Pin the language: get_default_settings() reads the OS locale, and the
+        // filler-word list falls back to a conservative set (no "um") for
+        // anything but recognized language codes — deterministic regardless of
+        // the host/CI locale (e.g. LANG=C.UTF-8).
+        settings.app_language = "en".to_string();
+        settings.custom_words = vec!["Purna".to_string(), "Tilicho".to_string()];
+        // "new line" only fires as a spoken command when it is its own sentence
+        // (see format::spoken_commands::apply_newlines) — hence the periods.
+        let out = apply_rule_stages("um so poorna joined tilecho. new line. great", &settings);
+        assert!(out.contains("Purna"), "got: {out}");
+        assert!(out.contains("Tilicho"), "got: {out}");
+        assert!(!out.contains("um"), "fillers must be stripped: {out}");
+        assert!(out.contains('\n'), "spoken commands must still run: {out}");
+    }
+}
+
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
@@ -374,13 +421,10 @@ pub(crate) async fn process_transcription_output(
         final_text = converted_text;
     }
 
-    // M3: deterministic, CPU-only spoken formatting commands (newlines, punctuation,
-    // capitalization, opt-in numbers). Gated by its own settings; no network, no LLM.
-    let spoken_cfg = crate::format::SpokenCommandsConfig {
-        enabled: settings.spoken_commands_enabled,
-        number_conversion: settings.number_conversion_enabled,
-    };
-    final_text = crate::format::apply_spoken_commands(&final_text, &spoken_cfg);
+    // M7: deterministic pipeline — dictionary correction (all engines), filler
+    // filtering, spoken commands. Runs on the raw STT text; history keeps the raw
+    // text so corrections are visible as a diff.
+    final_text = apply_rule_stages(&final_text, &settings);
 
     // Passes cascade: a rule's output is re-scanned by later rules, and snippets run on the
     // replacements' output. Idempotent when a `to` does not re-introduce a matched `from`.

@@ -1,4 +1,3 @@
-use crate::audio_toolkit::{apply_custom_words, filter_transcription_output};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::model::{EngineType, ModelManager};
 use crate::settings::{
@@ -682,31 +681,6 @@ impl TranscriptionManager {
             }
         };
 
-        // Apply word correction if custom words are configured.
-        // Skip for Whisper models since custom words are already passed as initial_prompt.
-        let is_whisper = self
-            .model_manager
-            .get_model_info(&settings.selected_model)
-            .map(|info| matches!(info.engine_type, EngineType::Whisper))
-            .unwrap_or(false);
-
-        let corrected_result = if !settings.custom_words.is_empty() && !is_whisper {
-            apply_custom_words(
-                &result.text,
-                &settings.custom_words,
-                settings.word_correction_threshold,
-            )
-        } else {
-            result.text
-        };
-
-        // Filter out filler words and hallucinations
-        let filtered_result = filter_transcription_output(
-            &corrected_result,
-            &settings.app_language,
-            &settings.custom_filler_words,
-        );
-
         let et = std::time::Instant::now();
         let translation_note = if settings.translate_to_english {
             " (translated)"
@@ -719,7 +693,7 @@ impl TranscriptionManager {
             translation_note
         );
 
-        let final_result = filtered_result;
+        let final_result = result.text.trim().to_string();
 
         if final_result.is_empty() {
             info!("Transcription result is empty");
