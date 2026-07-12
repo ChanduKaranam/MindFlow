@@ -275,7 +275,8 @@ fn collapse_stutters(text: &str) -> String {
 /// kept verbatim. Complements `collapse_stutters` (single words).
 fn collapse_phrase_loops(text: &str) -> String {
     fn norm(w: &str) -> String {
-        w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
+        w.trim_matches(|c: char| !c.is_alphanumeric())
+            .to_lowercase()
     }
     let words: Vec<&str> = text.split_whitespace().collect();
     let normed: Vec<String> = words.iter().map(|w| norm(w)).collect();
@@ -283,8 +284,14 @@ fn collapse_phrase_loops(text: &str) -> String {
     let mut i = 0;
     while i < words.len() {
         let mut collapsed = false;
-        for n in (2..=5).rev() {
+        // Ascending so the minimal repeating unit wins (e.g. "click here" x6
+        // collapses to "click here", not the 4-word super-block x3).
+        for n in 2..=5 {
             if i + n * 3 > words.len() {
+                continue;
+            }
+            // Punctuation-only tokens normalize to "" and would spuriously match.
+            if !normed[i..i + n].iter().all(|w| !w.is_empty()) {
                 continue;
             }
             let mut reps = 1;
@@ -619,6 +626,13 @@ mod tests {
         let text = "I did it, I did it, I did it, I did it, I did it,";
         let result = filter_transcription_output(text, "en", &None);
         assert_eq!(result, "I did it,");
+    }
+
+    #[test]
+    fn test_two_word_phrase_loop_fully_collapsed() {
+        let text = "click here click here click here click here click here click here";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "click here");
     }
 
     #[test]
