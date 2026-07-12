@@ -16,10 +16,7 @@ const FEW_SHOTS: &[(&str, &str)] = &[
         "um so basically I was thinking we could uh maybe move the meeting to thursday",
         "I was thinking we could move the meeting to Thursday.",
     ),
-    (
-        "send it to john at 2pm no wait actually 3pm",
-        "Send it to John at 3pm.",
-    ),
+    ("send it at 2pm no wait actually 3pm", "Send it at 3pm."),
     (
         "open the config dot yaml file and set debug equals true",
         "Open the config.yaml file and set debug=true.",

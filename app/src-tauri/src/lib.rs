@@ -1,21 +1,21 @@
 mod actions;
+mod inject;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
-mod cleanup;
 pub mod cli;
+pub mod replace;
+mod cleanup;
 mod clipboard;
 mod commands;
 mod format;
 mod helpers;
-mod inject;
 mod input;
 mod llm_client;
 mod managers;
 mod overlay;
 pub mod portable;
-pub mod replace;
 mod settings;
 mod shortcut;
 mod signal_handle;
@@ -338,12 +338,7 @@ fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 fn recommended_tier_cmd() -> Result<String, String> {
-    Ok(
-        crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(
-            &crate::stt_tier::detect_cpu_profile(),
-        ))
-        .to_string(),
-    )
+    Ok(crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(&crate::stt_tier::detect_cpu_profile())).to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
