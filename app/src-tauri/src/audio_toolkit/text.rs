@@ -1,7 +1,24 @@
-use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use rphonetic::DoubleMetaphone;
+use std::collections::HashSet;
 use strsim::levenshtein;
+
+/// Bundled common-English-word guard: ordinary words (e.g. "china") must
+/// never be fuzzily replaced by a custom-dictionary entry (e.g. "Chandra").
+static COMMON_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    include_str!("data/common_words_en.txt")
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect()
+});
+
+static DOUBLE_METAPHONE: Lazy<DoubleMetaphone> = Lazy::new(DoubleMetaphone::default);
+
+/// Exact-or-near-exact score ceiling under which even common English words may
+/// be replaced (e.g. "apple" -> "Apple"). Everything above it is guarded.
+const COMMON_WORD_MAX_SCORE: f64 = 0.05;
 
 /// Builds an n-gram string by cleaning and concatenating words
 ///
@@ -20,7 +37,7 @@ fn build_ngram(words: &[&str]) -> String {
 
 /// Finds the best matching custom word for a candidate string
 ///
-/// Uses Levenshtein distance and Soundex phonetic matching to find
+/// Uses Levenshtein distance and Double Metaphone phonetic matching to find
 /// the best match above the given threshold.
 ///
 /// # Arguments
@@ -64,8 +81,27 @@ fn find_best_match<'a>(
             1.0
         };
 
-        // Calculate phonetic similarity using Soundex
-        let phonetic_match = soundex(candidate, custom_word_nospace);
+        // Calculate phonetic similarity using Double Metaphone. Compares
+        // primary-or-alternate codes (not just primary) since Indian names
+        // often only agree on the alternate encoding.
+        //
+        // rphonetic 3.0.6's double_metaphone() panics on non-ASCII input
+        // (byte-index-not-on-char-boundary on e.g. "è"); Double Metaphone is
+        // an English-oriented algorithm anyway, so non-ASCII candidates/words
+        // just skip phonetic matching and fall back to Levenshtein alone.
+        let phonetic_match = if candidate.is_ascii() && custom_word_nospace.is_ascii() {
+            let c = DOUBLE_METAPHONE.double_metaphone(candidate);
+            let w = DOUBLE_METAPHONE.double_metaphone(custom_word_nospace);
+            let (c_primary, c_alt) = (c.primary(), c.alternate());
+            let (w_primary, w_alt) = (w.primary(), w.alternate());
+            !c_primary.is_empty()
+                && (c_primary == w_primary
+                    || (!c_alt.is_empty() && c_alt == w_primary)
+                    || (!w_alt.is_empty() && c_primary == w_alt)
+                    || (!c_alt.is_empty() && !w_alt.is_empty() && c_alt == w_alt))
+        } else {
+            false
+        };
 
         // Combine scores: favor phonetic matches, but also consider string similarity
         let combined_score = if phonetic_match {
@@ -89,8 +125,10 @@ fn find_best_match<'a>(
 /// This function corrects words in the input text by finding the best matches
 /// from a list of custom words using a combination of:
 /// - Levenshtein distance for string similarity
-/// - Soundex phonetic matching for pronunciation similarity
+/// - Double Metaphone phonetic matching for pronunciation similarity
 /// - N-gram matching for multi-word speech artifacts (e.g., "Charge B" -> "ChargeBee")
+/// - A bundled common-word guard so ordinary English words (e.g. "china") are
+///   never fuzzily replaced by a custom-dictionary entry
 ///
 /// # Arguments
 /// * `text` - The input text to correct
@@ -129,9 +167,17 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
             let ngram_words = &words[i..i + n];
             let ngram = build_ngram(ngram_words);
 
-            if let Some((replacement, _score)) =
+            if let Some((replacement, score)) =
                 find_best_match(&ngram, custom_words, &custom_words_nospace, threshold)
             {
+                // Common-word guard: ordinary English words are never fuzzily
+                // replaced ("china" must not become "Chandra"); only (near-)exact
+                // dictionary hits pass, e.g. recasing "apple" -> "Apple".
+                if n == 1 && score > COMMON_WORD_MAX_SCORE && COMMON_WORDS.contains(ngram.as_str())
+                {
+                    continue;
+                }
+
                 // Extract punctuation from first and last words of the n-gram
                 let (prefix, _) = extract_punctuation(ngram_words[0]);
                 let (_, suffix) = extract_punctuation(ngram_words[n - 1]);
@@ -371,6 +417,45 @@ pub fn filter_transcription_output(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_indian_names_phonetic_correction() {
+        let custom_words = vec![
+            "Purna".to_string(),
+            "Chandra".to_string(),
+            "Karanam".to_string(),
+            "Tilicho".to_string(),
+        ];
+        let result = apply_custom_words(
+            "i spoke with poorna chandhra karanaam from tilecho",
+            &custom_words,
+            0.18,
+        );
+        assert_eq!(result, "i spoke with Purna Chandra Karanam from Tilicho");
+    }
+
+    #[test]
+    fn test_common_word_not_replaced() {
+        // "china" is a common English word — must NOT become "Chandra".
+        let custom_words = vec!["Chandra".to_string()];
+        let result = apply_custom_words("we import tea from china", &custom_words, 0.35);
+        assert_eq!(result, "we import tea from china");
+    }
+
+    #[test]
+    fn test_common_word_exact_dictionary_hit_still_cased() {
+        // Exact match (score 0) is allowed even for common words.
+        let custom_words = vec!["Apple".to_string()];
+        let result = apply_custom_words("i work at apple", &custom_words, 0.18);
+        assert_eq!(result, "i work at Apple");
+    }
+
+    #[test]
+    fn test_multiword_name_ngram_correction() {
+        let custom_words = vec!["Purna Chandra Rao".to_string()];
+        let result = apply_custom_words("ask poorna chandra rao about it", &custom_words, 0.18);
+        assert!(result.contains("Purna Chandra Rao"), "got: {result}");
+    }
 
     #[test]
     fn test_apply_custom_words_exact_match() {
