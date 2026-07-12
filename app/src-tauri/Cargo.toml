@@ -72,6 +72,13 @@ tar = "0.4.44"
 flate2 = "1.0"
 sha2 = "0.10"
 transcribe-rs = { version = "0.3.8", features = ["whisper-cpp", "onnx"] }
+# MindFlow is CPU-only: no GPU features on llama-cpp-2 (same convention as transcribe-rs).
+# Pinned: its vendored ggml (0.9.7) must stay ABI-close to whisper-rs-sys's ggml (0.9.5)
+# because both link statically and the duplicate ggml symbols are merged (see build.rs).
+# Newer llama-cpp-2 (0.1.151 = ggml 0.13.x) would silently mix incompatible ggml versions.
+# Bump only together with transcribe-rs, re-running the llm_engine_smoke test.
+llama-cpp-2 = "=0.1.139"
+encoding_rs = "0.8" # persistent UTF-8 decoder for llama token_to_piece
 handy-keys = "0.2.4"
 ferrous-opencc = "0.2.3"
 clap = { version = "4", features = ["derive"] }

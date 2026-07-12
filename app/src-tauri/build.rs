@@ -2,6 +2,22 @@ fn main() {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     build_apple_intelligence_bridge();
 
+    // whisper-rs-sys (via transcribe-rs) and llama-cpp-sys-2 each vendor a full
+    // static ggml, so linking both into one binary produces duplicate ggml_*
+    // symbols. The copies are near-identical (ggml 0.9.5 vs 0.9.7, same tensor
+    // ABI); let the linker keep the first definition instead of erroring.
+    // ponytail: symbol-level mixing of two ggml patch versions — the clean fix
+    // is pinning transcribe-rs and llama-cpp-2 to releases that vendor the same
+    // ggml, or a shared system ggml, when the ecosystem allows it.
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_env == "msvc" {
+        println!("cargo:rustc-link-arg=/FORCE:MULTIPLE");
+    } else if target_os != "macos" {
+        println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
+    }
+    // macOS ld64 has no direct equivalent; revisit if a macOS build hits the clash.
+
     generate_tray_translations();
 
     tauri_build::build()
