@@ -270,12 +270,51 @@ fn collapse_stutters(text: &str) -> String {
     result.join(" ")
 }
 
+/// Collapses a 2–5 word phrase repeated 3+ times consecutively to one instance.
+/// Comparison ignores case and surrounding punctuation; the first instance is
+/// kept verbatim. Complements `collapse_stutters` (single words).
+fn collapse_phrase_loops(text: &str) -> String {
+    fn norm(w: &str) -> String {
+        w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
+    }
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let normed: Vec<String> = words.iter().map(|w| norm(w)).collect();
+    let mut out: Vec<&str> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    while i < words.len() {
+        let mut collapsed = false;
+        for n in (2..=5).rev() {
+            if i + n * 3 > words.len() {
+                continue;
+            }
+            let mut reps = 1;
+            while i + (reps + 1) * n <= words.len()
+                && normed[i + reps * n..i + (reps + 1) * n] == normed[i..i + n]
+            {
+                reps += 1;
+            }
+            if reps >= 3 {
+                out.extend_from_slice(&words[i..i + n]);
+                i += reps * n;
+                collapsed = true;
+                break;
+            }
+        }
+        if !collapsed {
+            out.push(words[i]);
+            i += 1;
+        }
+    }
+    out.join(" ")
+}
+
 /// Filters transcription output by removing filler words and stutter artifacts.
 ///
 /// This function cleans up raw transcription text by:
 /// 1. Removing filler words based on the app language (or custom list)
 /// 2. Collapsing repeated word stutters (e.g., "wh wh wh" -> "wh")
-/// 3. Cleaning up excess whitespace
+/// 3. Collapsing multi-word hallucination loops (e.g., "send the URL send the URL ...")
+/// 4. Cleaning up excess whitespace
 ///
 /// # Arguments
 /// * `text` - The raw transcription text to filter
@@ -311,6 +350,9 @@ pub fn filter_transcription_output(
 
     // Collapse repeated 1-2 letter words (stutter artifacts like "wh wh wh wh")
     filtered = collapse_stutters(&filtered);
+
+    // Collapse multi-word hallucination loops ("send the URL send the URL ...")
+    filtered = collapse_phrase_loops(&filtered);
 
     // Clean up multiple spaces to single space
     filtered = MULTI_SPACE_PATTERN.replace_all(&filtered, " ").to_string();
@@ -563,5 +605,34 @@ mod tests {
             "got double-counted result: {}",
             result
         );
+    }
+
+    #[test]
+    fn test_phrase_loop_collapsed() {
+        let text = "send the URL send the URL send the URL send the URL to me";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "send the URL to me");
+    }
+
+    #[test]
+    fn test_phrase_loop_with_punctuation_collapsed() {
+        let text = "I did it, I did it, I did it, I did it, I did it,";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "I did it,");
+    }
+
+    #[test]
+    fn test_two_phrase_repetitions_preserved() {
+        // Legitimate rhetorical repetition (2x) must survive.
+        let text = "location location is key";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "location location is key");
+    }
+
+    #[test]
+    fn test_normal_text_untouched_by_phrase_collapse() {
+        let text = "the quick brown fox jumps over the lazy dog";
+        let result = filter_transcription_output(text, "en", &None);
+        assert_eq!(result, "the quick brown fox jumps over the lazy dog");
     }
 }
