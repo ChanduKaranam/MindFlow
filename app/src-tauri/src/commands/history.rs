@@ -125,20 +125,16 @@ pub async fn update_history_entry_text(
         .apply_user_edit(id, &edited_text)
         .map_err(|e| e.to_string())?;
 
+    let mut new_words = Vec::new();
     if !learned.is_empty() {
         let mut settings = crate::settings::get_settings(&app);
-        for word in &learned {
-            if !settings
-                .custom_words
-                .iter()
-                .any(|w| w.eq_ignore_ascii_case(word))
-            {
-                settings.custom_words.push(word.clone());
-            }
+        new_words = crate::learn::newly_learned(&settings.custom_words, learned);
+        for word in &new_words {
+            settings.custom_words.push(word.clone());
         }
         crate::settings::write_settings(&app, settings);
     }
-    Ok(learned)
+    Ok(new_words)
 }
 
 #[tauri::command]

@@ -1,5 +1,5 @@
 use crate::cleanup::{
-    build_chat_prompt, build_system_prompt, strip_think, CleanupFlags, LlmEngine,
+    build_chat_prompt, build_system_prompt, is_sane_output, strip_think, CleanupFlags, LlmEngine,
 };
 use crate::managers::model::{EngineType, ModelManager};
 use crate::settings::AppSettings;
@@ -117,10 +117,8 @@ impl CleanupManager {
         };
 
         let cleaned = strip_think(&raw);
-        // Sanity: reject empty or wildly resized rewrites (model went off-task).
-        let ratio = cleaned.chars().count() as f64 / text.chars().count().max(1) as f64;
-        if cleaned.is_empty() || !(0.25..=4.0).contains(&ratio) {
-            warn!("AI cleanup output rejected (len ratio {ratio:.2}), falling back");
+        if !is_sane_output(&cleaned, text) {
+            warn!("AI cleanup output rejected (empty, bad length ratio, or unclosed think block), falling back");
             return None;
         }
         Some(cleaned)

@@ -124,6 +124,16 @@ pub fn learned_phrases(before: &str, after: &str) -> Vec<String> {
         .collect()
 }
 
+/// Filters `learned` down to words not already present (case-insensitively)
+/// in `existing`. Used to report only genuinely-new dictionary entries so an
+/// Undo doesn't delete a word the user added earlier.
+pub fn newly_learned(existing: &[String], learned: Vec<String>) -> Vec<String> {
+    learned
+        .into_iter()
+        .filter(|word| !existing.iter().any(|w| w.eq_ignore_ascii_case(word)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +183,29 @@ mod tests {
         assert!(learned_phrases("i think so", "I think so").is_empty());
         assert!(learned_phrases("use the servor", "use the server").is_empty());
         // no capital → not name-like
+    }
+
+    #[test]
+    fn newly_learned_drops_pre_existing_dictionary_entries() {
+        let existing = vec!["Murthy".to_string()];
+        let learned = vec!["Chandra".to_string(), "Murthy".to_string()];
+        assert_eq!(
+            newly_learned(&existing, learned),
+            vec!["Chandra".to_string()]
+        );
+    }
+
+    #[test]
+    fn newly_learned_is_case_insensitive() {
+        let existing = vec!["murthy".to_string()];
+        let learned = vec!["Murthy".to_string()];
+        assert!(newly_learned(&existing, learned).is_empty());
+    }
+
+    #[test]
+    fn newly_learned_keeps_all_when_none_pre_existing() {
+        let existing: Vec<String> = vec![];
+        let learned = vec!["Chandra".to_string(), "Murthy".to_string()];
+        assert_eq!(newly_learned(&existing, learned.clone()), learned);
     }
 }

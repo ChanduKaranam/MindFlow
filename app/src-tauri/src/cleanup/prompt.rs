@@ -82,6 +82,23 @@ pub fn strip_think(s: &str) -> String {
     out.trim().to_string()
 }
 
+/// Sanity check for cleaned LLM output before it replaces the original text.
+/// Rejects empty output, a wildly resized rewrite (model went off-task), and
+/// any leftover `<think>`/`</think>` tag — an unclosed think block (e.g. the
+/// model ignored `/no_think` and got truncated by `max_tokens` before
+/// `</think>`) can otherwise pass the length-ratio check and inject raw
+/// chain-of-thought into the focused app.
+pub fn is_sane_output(cleaned: &str, original: &str) -> bool {
+    if cleaned.is_empty() {
+        return false;
+    }
+    if cleaned.contains("<think>") || cleaned.contains("</think>") {
+        return false;
+    }
+    let ratio = cleaned.chars().count() as f64 / original.chars().count().max(1) as f64;
+    (0.25..=4.0).contains(&ratio)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +148,42 @@ mod tests {
             "Clean text."
         );
         assert_eq!(strip_think("No think block."), "No think block.");
+    }
+
+    #[test]
+    fn is_sane_output_rejects_unclosed_think_block() {
+        // Truncated before </think>: passes the length ratio but must still
+        // be rejected so raw chain-of-thought never reaches the focused app.
+        let original = "hello there";
+        let cleaned = "<think>\nokay let me consider how to rewrite this transcript";
+        assert!(!is_sane_output(cleaned, original));
+    }
+
+    #[test]
+    fn is_sane_output_accepts_already_stripped_text() {
+        assert!(is_sane_output("Clean text.", "clean text"));
+    }
+
+    #[test]
+    fn is_sane_output_accepts_normal_text() {
+        assert!(is_sane_output(
+            "I was thinking we could move the meeting to Thursday.",
+            "um so basically I was thinking we could uh maybe move the meeting to thursday"
+        ));
+    }
+
+    #[test]
+    fn is_sane_output_rejects_empty() {
+        assert!(!is_sane_output("", "some original text"));
+    }
+
+    #[test]
+    fn is_sane_output_rejects_ratio_out_of_bounds() {
+        let original = "a b c d e f g h";
+        // Too short.
+        assert!(!is_sane_output("a", original));
+        // Too long.
+        let too_long = "word ".repeat(50);
+        assert!(!is_sane_output(&too_long, original));
     }
 }
