@@ -18,6 +18,7 @@ import Onboarding, {
   PermissionPrimer,
   TryItNowStep,
   FeatureIntro,
+  CleanupModelStep,
 } from "./components/onboarding";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
@@ -30,6 +31,7 @@ type OnboardingStep =
   | "microphone"
   | "accessibility"
   | "model"
+  | "cleanup"
   | "tryit"
   | "features"
   | "done";
@@ -310,16 +312,19 @@ function App() {
   };
 
   const handleModelSelected = () => {
-    // Model download started — advance to the hands-on demo (peak-end moment).
-    setOnboardingStep("tryit");
+    // Model download started — advance to the optional AI-cleanup model step.
+    setOnboardingStep("cleanup");
   };
+
+  const handleCleanupDone = () => setOnboardingStep("tryit");
 
   // Step numbering for the progress indicator. macOS has an extra
   // accessibility step; the try-it and features screens share the final slot.
   const isMacOnboarding = detectedPlatform === "macos";
-  const stepTotal = isMacOnboarding ? 5 : 4;
+  const stepTotal = isMacOnboarding ? 6 : 5;
   const modelStepIndex = isMacOnboarding ? 4 : 3;
-  const finalStepIndex = isMacOnboarding ? 5 : 4;
+  const cleanupStepIndex = isMacOnboarding ? 5 : 4;
+  const finalStepIndex = isMacOnboarding ? 6 : 5;
   const transcribeHotkey = settings?.bindings?.transcribe?.current_binding ?? "";
 
   // Still checking onboarding status
@@ -373,6 +378,16 @@ function App() {
       <Onboarding
         onModelSelected={handleModelSelected}
         stepIndex={modelStepIndex}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
+  if (onboardingStep === "cleanup") {
+    return (
+      <CleanupModelStep
+        onDone={handleCleanupDone}
+        stepIndex={cleanupStepIndex}
         stepTotal={stepTotal}
       />
     );

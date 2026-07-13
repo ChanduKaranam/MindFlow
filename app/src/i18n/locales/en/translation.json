@@ -119,6 +119,11 @@
         "requestFailed": "Failed to request permission. Please try again."
       }
     },
+    "cleanup": {
+      "title": "AI cleanup (optional)",
+      "subtitle": "A small on-device model that removes fillers, fixes punctuation, and spells your names right. Skipping keeps rules-only formatting — you can download it later in Settings.",
+      "skip": "Skip for now"
+    },
     "tryit": {
       "title": "Try it now",
       "prompt": "Hold {{hotkey}} and read this line aloud.",

@@ -7,3 +7,4 @@ export { default as WelcomeStep } from "./WelcomeStep";
 export { default as PermissionPrimer } from "./PermissionPrimer";
 export { default as TryItNowStep } from "./TryItNowStep";
 export { default as FeatureIntro } from "./FeatureIntro";
+export { default as CleanupModelStep } from "./CleanupModelStep";
