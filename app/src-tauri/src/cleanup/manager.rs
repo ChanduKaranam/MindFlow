@@ -14,6 +14,19 @@ const CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
 /// or spawning any work — pulled out as a pure function so the fallback
 /// behavior is unit-testable without a live `ModelManager` (which needs a
 /// real `AppHandle`, unavailable in a plain `cargo test`).
+/// Preferred model if it's among the downloaded text-LLMs, else the largest
+/// downloaded one — running cleanup on a smaller model always beats silently
+/// skipping it when the configured model was never downloaded.
+fn pick_cleanup_model(preferred: &str, downloaded_llms: &[(String, u64)]) -> Option<String> {
+    if downloaded_llms.iter().any(|(id, _)| id == preferred) {
+        return Some(preferred.to_string());
+    }
+    downloaded_llms
+        .iter()
+        .max_by_key(|(_, size_mb)| *size_mb)
+        .map(|(id, _)| id.clone())
+}
+
 fn should_attempt_cleanup(text: &str, settings: &AppSettings) -> bool {
     if !settings.ai_cleanup_enabled || text.trim().is_empty() {
         return false;
@@ -38,14 +51,20 @@ impl CleanupManager {
     }
 
     fn resolve_model_id(&self, settings: &AppSettings) -> Option<String> {
-        let id = settings.cleanup_model_id.clone().unwrap_or_else(|| {
+        let preferred = settings.cleanup_model_id.clone().unwrap_or_else(|| {
             crate::cleanup::default_cleanup_model_id(crate::stt_tier::recommend_tier(
                 &crate::stt_tier::detect_cpu_profile(),
             ))
             .to_string()
         });
-        let info = self.model_manager.get_model_info(&id)?;
-        (info.is_downloaded && matches!(info.engine_type, EngineType::TextLlm)).then_some(id)
+        let downloaded_llms: Vec<(String, u64)> = self
+            .model_manager
+            .get_available_models()
+            .into_iter()
+            .filter(|m| m.is_downloaded && matches!(m.engine_type, EngineType::TextLlm))
+            .map(|m| (m.id, m.size_mb))
+            .collect();
+        pick_cleanup_model(&preferred, &downloaded_llms)
     }
 
     /// Run the LLM cleanup pass. `None` means "use the rules-only text" — the
@@ -138,6 +157,35 @@ mod tests {
     // `cleanup()` checks first. The real-model `generate()` path is covered
     // by `engine::tests::llm_engine_smoke` (`#[ignore]`d, run manually with a
     // real GGUF file).
+
+    fn llms(entries: &[(&str, u64)]) -> Vec<(String, u64)> {
+        entries.iter().map(|(id, s)| (id.to_string(), *s)).collect()
+    }
+
+    #[test]
+    fn preferred_model_wins_when_downloaded() {
+        let downloaded = llms(&[("qwen3-0.6b-q4", 484), ("qwen3-4b-q4", 2382)]);
+        assert_eq!(
+            pick_cleanup_model("qwen3-0.6b-q4", &downloaded).as_deref(),
+            Some("qwen3-0.6b-q4")
+        );
+    }
+
+    #[test]
+    fn falls_back_to_largest_downloaded_llm() {
+        // The user's real bug: 4B selected ("recommended"), only 1.7B downloaded —
+        // cleanup must use the 1.7B instead of silently doing nothing.
+        let downloaded = llms(&[("qwen3-0.6b-q4", 484), ("qwen3-1.7b-q4", 1056)]);
+        assert_eq!(
+            pick_cleanup_model("qwen3-4b-q4", &downloaded).as_deref(),
+            Some("qwen3-1.7b-q4")
+        );
+    }
+
+    #[test]
+    fn no_downloaded_llms_means_no_cleanup() {
+        assert_eq!(pick_cleanup_model("qwen3-4b-q4", &[]), None);
+    }
 
     #[test]
     fn disabled_setting_blocks_cleanup() {

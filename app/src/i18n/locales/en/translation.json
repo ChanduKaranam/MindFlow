@@ -693,6 +693,7 @@
     "download": "Download",
     "downloading": "Downloading… {{percent}}%",
     "notDownloaded": "Model not downloaded — dictation uses rules-only formatting until it is.",
+    "fallbackModel": "{{selected}} isn't downloaded — cleanup uses {{fallback}} until it is.",
     "sensitivity": "Name correction sensitivity",
     "sensitivityDescription": "Controls how aggressively your dictionary spellings are applied to correct names and jargon.",
     "sensitivityOff": "Off",

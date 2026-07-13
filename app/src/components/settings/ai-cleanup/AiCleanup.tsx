@@ -37,9 +37,15 @@ export const AiCleanup: React.FC = React.memo(() => {
   const llmModels = models.filter(
     (m: ModelInfo) => m.engine_type === "TextLlm",
   );
-  const activeModel = modelId
+  // Mirrors the backend's resolve_model_id: explicit selection (or the tier
+  // default in Auto mode); when that isn't downloaded, cleanup runs on the
+  // largest downloaded text-LLM instead of silently doing nothing.
+  const preferredModel = modelId
     ? llmModels.find((m) => m.id === modelId)
-    : undefined;
+    : llmModels.find((m) => m.tier && m.tier === recommendedTier);
+  const fallbackModel = llmModels
+    .filter((m) => m.is_downloaded)
+    .sort((a, b) => Number(b.size_mb) - Number(a.size_mb))[0];
   const undownloadedModels = llmModels.filter((m) => !m.is_downloaded);
 
   const sensitivity: SensitivityKey =
@@ -143,9 +149,14 @@ export const AiCleanup: React.FC = React.memo(() => {
                   })}
                 </div>
               )}
-              {activeModel && !activeModel.is_downloaded && (
+              {preferredModel && !preferredModel.is_downloaded && (
                 <Alert variant="warning" contained>
-                  {t("aiCleanup.notDownloaded")}
+                  {fallbackModel
+                    ? t("aiCleanup.fallbackModel", {
+                        selected: preferredModel.name,
+                        fallback: fallbackModel.name,
+                      })
+                    : t("aiCleanup.notDownloaded")}
                 </Alert>
               )}
             </div>
