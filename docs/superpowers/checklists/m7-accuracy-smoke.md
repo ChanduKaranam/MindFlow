@@ -9,7 +9,6 @@
 - [ ] Settings: all three flags off → LLM skipped (instant); sensitivity Off → no phonetic corrections
 - [ ] Kill the app mid-download of the LLM → relaunch → partial download resumes/cleans up
 - [ ] cargo test + CI green (mock swap unaffected)
-- [ ] **macOS build must be verified/fixed before any macOS release** — `whisper-rs-sys` and
-      `llama-cpp-sys-2` both vendor static `ggml`; the GNU-ld/MSVC duplicate-symbol workarounds in
-      `app/src-tauri/build.rs` have no `ld64` equivalent, so an aarch64 `.dmg` build currently fails
-      at link. Do not ship a macOS release off this branch until this is confirmed fixed.
+- [ ] macOS: launch the bundled `.app` once and run a dictation with cleanup ON — the
+      llama/ggml dylibs now live in `Contents/Frameworks` (dynamic-link fix; CI proves
+      the build + bundle, but a real launch on hardware hasn't been done yet)

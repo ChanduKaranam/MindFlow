@@ -29,14 +29,14 @@ All notable changes to MindFlow are documented here.
 - New **AI cleanup** settings card: on/off flags, model download/management,
   and name-correction sensitivity.
 
-### Known issues
-- **macOS (aarch64) builds currently fail at link time.** `whisper-rs-sys`
-  and `llama-cpp-sys-2` each vendor a full static `ggml`; `build.rs` works
-  around the resulting duplicate-symbol clash with
-  `-Wl,--allow-multiple-definition` (GNU ld) / `/FORCE:MULTIPLE` (MSVC), but
-  `ld64` has no direct equivalent. **The macOS build must be verified/fixed
-  before any macOS release of this branch.** See the comment in
-  `app/src-tauri/build.rs`.
+### Platform notes
+- **macOS (aarch64):** `whisper-rs-sys` and `llama-cpp-sys-2` each vendor a
+  full static `ggml`, which duplicate-symbol-clashes at link. GNU ld/MSVC use
+  `--allow-multiple-definition` / `/FORCE:MULTIPLE`; `ld64` has no equivalent,
+  so on macOS `llama-cpp-2` is built with its `dynamic-link` feature instead —
+  llama.cpp and its ggml become dylibs bundled into `Contents/Frameworks`
+  (see `app/src-tauri/build.rs` and `bundle.macOS.frameworks` in
+  `tauri.conf.json`). Verified by the full `tauri build` macOS job in CI.
 
 ## v1.0.0 — first release
 

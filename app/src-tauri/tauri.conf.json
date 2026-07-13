@@ -38,6 +38,13 @@
     ],
     "macOS": {
       "files": {},
+      "frameworks": [
+        "target/release/libllama.0.dylib",
+        "target/release/libggml.0.dylib",
+        "target/release/libggml-base.0.dylib",
+        "target/release/libggml-cpu.0.dylib",
+        "target/release/libggml-metal.0.dylib"
+      ],
       "hardenedRuntime": true,
       "minimumSystemVersion": "10.15",
       "signingIdentity": "-",
