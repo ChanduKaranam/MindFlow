@@ -34,7 +34,10 @@ model sized for your CPU.
   start, press **Enter** to stop & transcribe).
 - **Formatting:** punctuation, capitalization, filler-word removal, spoken
   commands ("new line", "comma"…), number conversion.
-- **Personalization:** custom-word dictionary, find/replace rules, and snippets.
+- **AI cleanup:** on-device LLM rewriting (fillers, punctuation,
+  self-corrections) — Qwen3, fully local.
+- **Personalization:** custom-word dictionary, find/replace rules, snippets,
+  and auto-learns corrected names from History edits.
 - **Noise suppression** + voice-activity detection in the live pipeline.
 - **100% local** — see *Privacy* below.
 
@@ -49,11 +52,13 @@ model sized for your CPU.
 ## Privacy
 
 Core dictation makes **zero network calls**. The pipeline (capture → voice
-detection → speech-to-text → formatting → text injection) runs entirely on your
-device. The only network use is the **one-time model download** and an
-**optional, disable-able** update check. Cloud post-processing is off by
-default. This is enforced in CI by a guard test that fails the build if a
-network call ever enters the dictation path — details in the
+detection → speech-to-text → AI cleanup → formatting → text injection) runs
+entirely on your device — the AI cleanup LLM runs in-process, same as speech-to-text.
+The only network use is the **one-time model download** (STT model or the
+optional cleanup LLM) and an **optional, disable-able** update check. Cloud
+post-processing is off by default. This is enforced in CI by a guard test
+that fails the build if a network call ever enters the dictation path —
+details in the
 [zero-network audit](docs/superpowers/audits/2026-06-27-m6-zero-network-audit.md).
 
 ## Build from source

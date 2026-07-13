@@ -166,13 +166,13 @@ const settingUpdaters: {
     commands.changeExtraRecordingBufferSetting(value as number),
   noise_suppression: (value) =>
     commands.changeNoiseSuppressionSetting(value as boolean),
-  vad_threshold: (value) =>
-    commands.changeVadThresholdSetting(value as number),
+  vad_threshold: (value) => commands.changeVadThresholdSetting(value as number),
   onboarding_completed: (value) =>
     commands.setOnboardingCompleted(value as boolean),
   ai_cleanup_enabled: (value) =>
     commands.changeAiCleanupEnabledSetting(value as boolean),
-  cleanup_smart: (value) => commands.changeCleanupSmartSetting(value as boolean),
+  cleanup_smart: (value) =>
+    commands.changeCleanupSmartSetting(value as boolean),
   cleanup_self_correction: (value) =>
     commands.changeCleanupSelfCorrectionSetting(value as boolean),
   cleanup_preserve_technical: (value) =>

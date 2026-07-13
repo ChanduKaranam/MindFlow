@@ -5,7 +5,8 @@ use crate::audio_toolkit::text::COMMON_WORDS;
 use strsim::levenshtein;
 
 fn norm(w: &str) -> String {
-    w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
+    w.trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase()
 }
 
 /// Punctuation-trimmed but case-preserving form, used for the LCS match itself.
@@ -170,6 +171,7 @@ mod tests {
     #[test]
     fn ignores_case_only_and_lowercase_edits() {
         assert!(learned_phrases("i think so", "I think so").is_empty());
-        assert!(learned_phrases("use the servor", "use the server").is_empty()); // no capital → not name-like
+        assert!(learned_phrases("use the servor", "use the server").is_empty());
+        // no capital → not name-like
     }
 }

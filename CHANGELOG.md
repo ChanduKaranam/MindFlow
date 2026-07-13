@@ -2,6 +2,42 @@
 
 All notable changes to MindFlow are documented here.
 
+## Unreleased — M7 accuracy stack
+
+### Accuracy
+- **Local LLM cleanup** — an always-on, on-device Qwen3 cleanup pass rewrites
+  fillers, punctuation, and self-corrections in the transcript. Fallback-safe:
+  if the model isn't downloaded or generation times out, dictation silently
+  falls back to the existing rules-only formatting with no error surfaced.
+- **Name correction** — Double-Metaphone phonetic matching against the
+  custom-word dictionary, upgraded from exact match, with a 10k common-word
+  guard so everyday words are never "corrected" into a dictionary name.
+  Applies to transcripts from **all** STT engines (Whisper, Parakeet,
+  Moonshine), not just one.
+- **Phrase-loop hallucination collapse** — collapses repeating multi-word
+  phrase loops (a known STT hallucination pattern) down to a single instance.
+
+### Personalization
+- **History transcript editing** — edit a mangled transcript directly in
+  History.
+- **Dictionary auto-learn** — editing a name correction in History
+  auto-learns the corrected spelling into the custom-word dictionary
+  (visible, reversible — undo removes the learned entry).
+
+### Onboarding & settings
+- New onboarding step offers the optional cleanup-model download (skippable).
+- New **AI cleanup** settings card: on/off flags, model download/management,
+  and name-correction sensitivity.
+
+### Known issues
+- **macOS (aarch64) builds currently fail at link time.** `whisper-rs-sys`
+  and `llama-cpp-sys-2` each vendor a full static `ggml`; `build.rs` works
+  around the resulting duplicate-symbol clash with
+  `-Wl,--allow-multiple-definition` (GNU ld) / `/FORCE:MULTIPLE` (MSVC), but
+  `ld64` has no direct equivalent. **The macOS build must be verified/fixed
+  before any macOS release of this branch.** See the comment in
+  `app/src-tauri/build.rs`.
+
 ## v1.0.0 — first release
 
 MindFlow's first public release: a **free, fully-local, CPU-only, cross-platform

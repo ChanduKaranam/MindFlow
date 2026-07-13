@@ -387,10 +387,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
 
     try {
       setSaving(true);
-      const result = await commands.updateHistoryEntryText(
-        entry.id,
-        trimmed,
-      );
+      const result = await commands.updateHistoryEntryText(entry.id, trimmed);
       if (result.status !== "ok") {
         throw new Error(String(result.error));
       }

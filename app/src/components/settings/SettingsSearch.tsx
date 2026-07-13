@@ -87,7 +87,14 @@ const SEARCH_INDEX: IndexEntry[] = [
   {
     id: "model",
     section: "models",
-    keywords: ["model", "whisper", "parakeet", "accuracy", "download", "speech"],
+    keywords: [
+      "model",
+      "whisper",
+      "parakeet",
+      "accuracy",
+      "download",
+      "speech",
+    ],
   },
   {
     id: "aiCleanup",

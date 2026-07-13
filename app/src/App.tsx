@@ -226,7 +226,8 @@ function App() {
       try {
         const settingsResult = await commands.getAppSettings();
         if (settingsResult.status === "ok") {
-          onboardingCompleted = settingsResult.data.onboarding_completed ?? false;
+          onboardingCompleted =
+            settingsResult.data.onboarding_completed ?? false;
         }
       } catch (e) {
         console.warn("Failed to read onboarding_completed flag:", e);
@@ -325,7 +326,8 @@ function App() {
   const modelStepIndex = isMacOnboarding ? 4 : 3;
   const cleanupStepIndex = isMacOnboarding ? 5 : 4;
   const finalStepIndex = isMacOnboarding ? 6 : 5;
-  const transcribeHotkey = settings?.bindings?.transcribe?.current_binding ?? "";
+  const transcribeHotkey =
+    settings?.bindings?.transcribe?.current_binding ?? "";
 
   // Still checking onboarding status
   if (onboardingStep === null) {
