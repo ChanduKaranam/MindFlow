@@ -8,7 +8,16 @@ use log::{error, warn};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
+/// Safety net against a wedged generate(), not a latency target — normal runs
+/// finish in a few seconds. Generous because CPU generation on the larger
+/// models legitimately takes 10s+ and a fallback after waiting is the worst
+/// outcome (the user waited AND got the raw text).
+const GENERATION_TIMEOUT: Duration = Duration::from_secs(30);
+/// Extra budget when the engine must first load the GGUF from disk (first
+/// dictation after startup or after a model switch).
+const LOAD_ALLOWANCE: Duration = Duration::from_secs(30);
+/// Cleanup runs per sentence-packed chunk of at most this many words.
+const CHUNK_MAX_WORDS: usize = 70;
 
 /// The cheap guard checks `cleanup()` runs before touching the model manager
 /// or spawning any work — pulled out as a pure function so the fallback
@@ -92,11 +101,31 @@ impl CleanupManager {
                 return None;
             }
         };
-        let prompt = build_chat_prompt(&build_system_prompt(&flags, &settings.custom_words), text);
-        let max_tokens = (text.split_whitespace().count() * 3).clamp(64, 2048);
+        let system = build_system_prompt(&flags, &settings.custom_words);
+
+        // Small models drop content on long inputs: clean sentence-packed
+        // chunks independently, preserving dictated paragraph breaks, so a
+        // bad chunk falls back to its raw text alone.
+        let paragraphs: Vec<Vec<String>> = text
+            .split("\n\n")
+            .filter(|p| !p.trim().is_empty())
+            .map(|p| crate::cleanup::prompt::chunk_transcript(p, CHUNK_MAX_WORDS))
+            .collect();
+        let chunks: Vec<String> = paragraphs.iter().flatten().cloned().collect();
+        let n_chunks = chunks.len().max(1) as u32;
 
         let engine_slot = Arc::clone(&self.engine);
-        let task = tauri::async_runtime::spawn_blocking(move || -> Result<String> {
+        let timeout_budget = {
+            let guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
+            let load = if matches!(&*guard, Some((id, _)) if *id == model_id) {
+                Duration::ZERO
+            } else {
+                LOAD_ALLOWANCE
+            };
+            load + GENERATION_TIMEOUT * n_chunks
+        };
+        let chunks_for_task = chunks.clone();
+        let task = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<Option<String>>> {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
                 let needs_load = !matches!(&*guard, Some((id, _)) if *id == model_id);
@@ -104,7 +133,24 @@ impl CleanupManager {
                     *guard = Some((model_id.clone(), LlmEngine::load(&path)?));
                 }
                 let (_, engine) = guard.as_ref().expect("just loaded");
-                engine.generate(&prompt, max_tokens)
+                let mut outs = Vec::with_capacity(chunks_for_task.len());
+                for chunk in &chunks_for_task {
+                    let prompt = build_chat_prompt(&system, chunk);
+                    let max_tokens = (chunk.split_whitespace().count() * 3).clamp(64, 512);
+                    // A failed chunk falls back alone; only a load error above
+                    // aborts the whole pass.
+                    outs.push(match engine.generate(&prompt, max_tokens) {
+                        Ok(raw) => {
+                            let cleaned = strip_think(&raw);
+                            is_sane_output(&cleaned, chunk).then_some(cleaned)
+                        }
+                        Err(e) => {
+                            warn!("AI cleanup chunk failed, keeping raw chunk: {e}");
+                            None
+                        }
+                    });
+                }
+                Ok(outs)
             }));
             match outcome {
                 Ok(r) => r,
@@ -119,8 +165,8 @@ impl CleanupManager {
         // ponytail: on timeout the blocking task is abandoned, not killed; a wedged
         // generate() serializes later cleanups on the engine mutex — upgrade to a
         // dedicated worker thread with a kill switch if this shows up in practice.
-        let raw = match tokio::time::timeout(CLEANUP_TIMEOUT, task).await {
-            Ok(Ok(Ok(text))) => text,
+        let outs = match tokio::time::timeout(timeout_budget, task).await {
+            Ok(Ok(Ok(outs))) => outs,
             Ok(Ok(Err(e))) => {
                 error!("AI cleanup failed, falling back to rules-only text: {e}");
                 return None;
@@ -130,17 +176,40 @@ impl CleanupManager {
                 return None;
             }
             Err(_) => {
-                warn!("AI cleanup timed out after {CLEANUP_TIMEOUT:?}, falling back");
+                warn!("AI cleanup timed out after {timeout_budget:?}, falling back");
                 return None;
             }
         };
 
-        let cleaned = strip_think(&raw);
-        if !is_sane_output(&cleaned, text) {
-            warn!("AI cleanup output rejected (empty, bad length ratio, or unclosed think block), falling back");
+        let rejected = outs.iter().filter(|o| o.is_none()).count();
+        if rejected == outs.len() {
+            warn!("AI cleanup: every chunk rejected, falling back to rules-only text");
             return None;
         }
-        Some(cleaned)
+        if rejected > 0 {
+            warn!(
+                "AI cleanup: {rejected}/{} chunks rejected, kept raw for those",
+                outs.len()
+            );
+        }
+
+        // Stitch back: cleaned (or raw) chunks joined within a paragraph,
+        // paragraphs re-joined with the dictated blank line.
+        let mut outs_iter = outs.into_iter();
+        let mut chunks_iter = chunks.into_iter();
+        let stitched: Vec<String> = paragraphs
+            .iter()
+            .map(|para| {
+                para.iter()
+                    .map(|_| {
+                        let raw = chunks_iter.next().expect("chunk count matches");
+                        outs_iter.next().expect("out count matches").unwrap_or(raw)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
+        Some(stitched.join("\n\n"))
     }
 }
 

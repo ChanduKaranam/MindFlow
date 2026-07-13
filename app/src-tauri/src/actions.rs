@@ -371,6 +371,7 @@ pub(crate) fn apply_rule_stages(text: &str, settings: &AppSettings) -> String {
             settings.word_correction_threshold,
         );
     }
+    t = crate::audio_toolkit::text::glue_spoken_emails(&t);
     t = crate::audio_toolkit::filter_transcription_output(
         &t,
         &settings.app_language,

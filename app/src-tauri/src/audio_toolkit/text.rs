@@ -14,7 +14,11 @@ pub(crate) static COMMON_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         .collect()
 });
 
-static DOUBLE_METAPHONE: Lazy<DoubleMetaphone> = Lazy::new(DoubleMetaphone::default);
+// Unlimited code length: the default truncates codes to 4 chars, which makes
+// any two long names sharing the first consonant sounds "phonetically equal"
+// ("Venkata Lakshmi Prasanna" vs "Venkata Sai Krishna") — a wrong-name
+// correction generator on multi-word Indian names.
+static DOUBLE_METAPHONE: Lazy<DoubleMetaphone> = Lazy::new(|| DoubleMetaphone::new(None));
 
 /// Exact-or-near-exact score ceiling under which even common English words may
 /// be replaced (e.g. "apple" -> "Apple"). Everything above it is guarded.
@@ -151,17 +155,29 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
         .map(|w| w.replace(' ', ""))
         .collect();
 
+    // Every word that appears verbatim in some entry is a known-correct
+    // spelling: never fuzzily rewrite it into a *different* entry ("Sai" must
+    // not become "Sayi" when both are in the dictionary).
+    let entry_words: HashSet<String> = custom_words_lower
+        .iter()
+        .flat_map(|w| w.split_whitespace().map(|t| t.to_string()))
+        .collect();
+
     let words: Vec<&str> = text.split_whitespace().collect();
     let mut result = Vec::new();
     let mut i = 0;
 
     while i < words.len() {
-        let mut matched = false;
-
-        // Try n-grams from longest (3) to shortest (1) - greedy matching
-        for n in (1..=3).rev() {
+        // Evaluate every span length (up to 5 words, covering 4-5 word names)
+        // and keep the BEST-scoring one. Taking the first passing span instead
+        // either eats a following word (a long span "Charge B, che" beating the
+        // right "Charge B") or duplicates one (a short span "Chandra" matching
+        // a longer entry and leaving "Rao" behind); on score ties the longer
+        // span wins so a full name beats its own prefix.
+        let mut best: Option<(f64, usize, &String)> = None;
+        for n in 1..=5usize {
             if i + n > words.len() {
-                continue;
+                break;
             }
 
             let ngram_words = &words[i..i + n];
@@ -177,27 +193,97 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
                 {
                     continue;
                 }
+                // Known-correct spelling guard (see entry_words above).
+                if n == 1 && score > COMMON_WORD_MAX_SCORE && entry_words.contains(ngram.as_str()) {
+                    continue;
+                }
+                // Absorption guard: if dropping the span's first word gets the
+                // span CLOSER to the matched entry, that word is a swallowed
+                // left neighbor ("at factorlab.in" → "factorlab.in",
+                // "è Charge B" → "Charge B") — skip; the tighter span is
+                // matched on a later iteration.
+                if n > 1 && score > COMMON_WORD_MAX_SCORE {
+                    let entry_nospace = replacement.to_lowercase().replace(' ', "");
+                    let remainder = build_ngram(&words[i + 1..i + n]);
+                    if levenshtein(&remainder, &entry_nospace)
+                        <= levenshtein(&ngram, &entry_nospace)
+                    {
+                        continue;
+                    }
+                }
 
-                // Extract punctuation from first and last words of the n-gram
-                let (prefix, _) = extract_punctuation(ngram_words[0]);
-                let (_, suffix) = extract_punctuation(ngram_words[n - 1]);
-
-                // Preserve case from first word
-                let corrected = preserve_case_pattern(ngram_words[0], replacement);
-
-                result.push(format!("{}{}{}", prefix, corrected, suffix));
-                i += n;
-                matched = true;
-                break;
+                let better = match best {
+                    None => true,
+                    Some((best_score, best_n, _)) => {
+                        score < best_score || (score == best_score && n > best_n)
+                    }
+                };
+                if better {
+                    best = Some((score, n, replacement));
+                }
             }
         }
 
-        if !matched {
+        if let Some((_, n, replacement)) = best {
+            let ngram_words = &words[i..i + n];
+            // Extract punctuation from first and last words of the n-gram
+            let (prefix, _) = extract_punctuation(ngram_words[0]);
+            let (_, suffix) = extract_punctuation(ngram_words[n - 1]);
+
+            // Preserve case from first word
+            let corrected = preserve_case_pattern(ngram_words[0], replacement);
+
+            result.push(format!("{}{}{}", prefix, corrected, suffix));
+            i += n;
+        } else {
             result.push(words[i].to_string());
             i += 1;
         }
     }
 
+    result.join(" ")
+}
+
+/// Glue spoken email addresses: `x.y at z.tld` / `x.y at rate z.tld` /
+/// `x.y at the rate z.tld` (Indian English for "@") become `x.y@z.tld`.
+/// Deterministic and conservative: both sides must already contain a dot —
+/// "the meeting starts at 10" or "reach me at factorlab.in" are untouched.
+pub fn glue_spoken_emails(text: &str) -> String {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let dotted = |w: &str| {
+        let core = w.trim_matches(|c: char| !c.is_alphanumeric());
+        core.contains('.') && !core.ends_with('.') && !core.starts_with('.')
+    };
+    let mut result: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        let at_len = if words[i].eq_ignore_ascii_case("at") {
+            if i + 2 < words.len()
+                && words[i + 1].eq_ignore_ascii_case("the")
+                && words[i + 2].eq_ignore_ascii_case("rate")
+            {
+                Some(3)
+            } else if i + 1 < words.len() && words[i + 1].eq_ignore_ascii_case("rate") {
+                Some(2)
+            } else {
+                Some(1)
+            }
+        } else {
+            None
+        };
+        if let Some(at_len) = at_len {
+            if let (Some(prev), Some(next)) = (result.last(), words.get(i + at_len)) {
+                if dotted(prev) && dotted(next) {
+                    let glued = format!("{}@{}", result.pop().unwrap(), next);
+                    result.push(glued);
+                    i += at_len + 1;
+                    continue;
+                }
+            }
+        }
+        result.push(words[i].to_string());
+        i += 1;
+    }
     result.join(" ")
 }
 
@@ -640,6 +726,78 @@ mod tests {
         let text = "um I think this works";
         let result = filter_transcription_output(text, "xx", &None);
         assert_eq!(result, "um I think this works");
+    }
+
+    #[test]
+    fn spoken_email_at_rate_glued() {
+        assert_eq!(
+            glue_spoken_emails("my email is purna.karnam at rate factorlab.in again"),
+            "my email is purna.karnam@factorlab.in again"
+        );
+        assert_eq!(
+            glue_spoken_emails("that's purna.karanam at factorlab.in please"),
+            "that's purna.karanam@factorlab.in please"
+        );
+        assert_eq!(
+            glue_spoken_emails("send it to john.smith at the rate example.com now"),
+            "send it to john.smith@example.com now"
+        );
+    }
+
+    #[test]
+    fn spoken_email_glue_leaves_prose_alone() {
+        // "at" with a non-dotted side stays a word.
+        assert_eq!(
+            glue_spoken_emails("the meeting starts at 10.30 a.m. today"),
+            "the meeting starts at 10.30 a.m. today"
+        );
+        assert_eq!(
+            glue_spoken_emails("reach me at factorlab.in today"),
+            "reach me at factorlab.in today"
+        );
+        assert_eq!(
+            glue_spoken_emails("we met at the rate they proposed"),
+            "we met at the rate they proposed"
+        );
+    }
+
+    #[test]
+    fn four_word_name_replaced_without_duplicating_tail() {
+        // Regression: a 3-gram matching a 4-word entry left the 4th word
+        // behind ("... Chandra Rao Rao").
+        let words = vec!["Karanam Purna Chandra Rao".to_string()];
+        let result = apply_custom_words("my name is Karnam Poorna Chandra Rao today", &words, 0.18);
+        assert_eq!(result, "my name is Karanam Purna Chandra Rao today");
+    }
+
+    #[test]
+    fn long_names_sharing_a_prefix_do_not_cross_correct() {
+        // Regression: 4-char metaphone truncation made "Venkata Lakshmi
+        // Prasanna" phonetically equal to "Venkata Sai Krishna".
+        let words = vec![
+            "Venkata Sai Krishna".to_string(),
+            "Naga Venkata Lakshmi Prasanna".to_string(),
+        ];
+        let result =
+            apply_custom_words("meet Naga Venkata Lakshmi Prasanna tomorrow", &words, 0.18);
+        assert_eq!(result, "meet Naga Venkata Lakshmi Prasanna tomorrow");
+    }
+
+    #[test]
+    fn fuzzy_span_does_not_swallow_left_neighbor() {
+        // Regression: "at factorlab.in" lev-matched "factorlab.in" and ate "at".
+        let words = vec!["factorlab.in".to_string()];
+        let result = apply_custom_words("reach me at factorlab.in today", &words, 0.18);
+        assert_eq!(result, "reach me at factorlab.in today");
+    }
+
+    #[test]
+    fn exact_entry_word_never_rewritten_to_sibling_entry() {
+        // Regression: "Sai" (verbatim in "Sai Charan") was rewritten to the
+        // separate entry "Sayi".
+        let words = vec!["Sayi".to_string(), "Sai Charan".to_string()];
+        let result = apply_custom_words("Sai said hello", &words, 0.18);
+        assert_eq!(result, "Sai said hello");
     }
 
     #[test]

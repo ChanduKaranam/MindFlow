@@ -71,9 +71,15 @@ impl LlmEngine {
         }
         ctx.decode(&mut batch)?;
 
-        // Low temperature: rewrite faithfully, don't get creative.
-        let mut sampler =
-            LlamaSampler::chain_simple([LlamaSampler::temp(0.2), LlamaSampler::dist(42)]);
+        // Qwen3's official non-thinking sampling (temp 0.7, top-p 0.8, top-k 20);
+        // the model card warns near-greedy decoding degrades output and loops.
+        // Fixed dist seed keeps runs reproducible.
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::top_k(20),
+            LlamaSampler::top_p(0.8, 1),
+            LlamaSampler::temp(0.7),
+            LlamaSampler::dist(42),
+        ]);
 
         let mut out = String::new();
         // One decoder for the whole generation: UTF-8 chars split across token
