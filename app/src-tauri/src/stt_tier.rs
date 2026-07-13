@@ -1,11 +1,13 @@
 use crate::managers::model::ModelTier;
 
-/// Maps a ModelTier to its canonical lowercase string for the frontend.
+/// Maps a ModelTier to its canonical string for the frontend. Must match the
+/// serde/specta serialization of `ModelTier` ("Turbo"/"Balanced"/"Max") — the
+/// frontend compares this against `ModelInfo.tier` directly.
 pub fn tier_to_str(t: ModelTier) -> &'static str {
     match t {
-        ModelTier::Turbo => "turbo",
-        ModelTier::Balanced => "balanced",
-        ModelTier::Max => "max",
+        ModelTier::Turbo => "Turbo",
+        ModelTier::Balanced => "Balanced",
+        ModelTier::Max => "Max",
     }
 }
 
@@ -59,17 +61,28 @@ mod tests {
 
     #[test]
     fn tier_to_str_turbo() {
-        assert_eq!(tier_to_str(ModelTier::Turbo), "turbo");
+        assert_eq!(tier_to_str(ModelTier::Turbo), "Turbo");
     }
 
     #[test]
     fn tier_to_str_balanced() {
-        assert_eq!(tier_to_str(ModelTier::Balanced), "balanced");
+        assert_eq!(tier_to_str(ModelTier::Balanced), "Balanced");
     }
 
     #[test]
     fn tier_to_str_max() {
-        assert_eq!(tier_to_str(ModelTier::Max), "max");
+        assert_eq!(tier_to_str(ModelTier::Max), "Max");
+    }
+
+    /// Guard: tier_to_str must stay in sync with ModelTier's serde
+    /// serialization, since the frontend compares the command's string
+    /// against `ModelInfo.tier` verbatim.
+    #[test]
+    fn tier_to_str_matches_serde_casing() {
+        for t in [ModelTier::Turbo, ModelTier::Balanced, ModelTier::Max] {
+            let serialized = serde_json::to_string(&t).unwrap();
+            assert_eq!(serialized, format!("\"{}\"", tier_to_str(t)));
+        }
     }
 
     #[test]
