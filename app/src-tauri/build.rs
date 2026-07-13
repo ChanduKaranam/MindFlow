@@ -15,8 +15,15 @@ fn main() {
         println!("cargo:rustc-link-arg=/FORCE:MULTIPLE");
     } else if target_os != "macos" {
         println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
+    } else {
+        // ld64 has no --allow-multiple-definition; instead llama-cpp-2 is built
+        // with dynamic-link on macOS (see Cargo.toml), so llama's ggml lives in
+        // its own dylibs and never clashes with whisper's static ggml. rpaths:
+        // next to the binary for dev/test runs (llama-cpp-sys-2's build.rs
+        // hardlinks the dylibs into the target dir), Frameworks for the bundle.
+        println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../Frameworks");
     }
-    // macOS ld64 has no direct equivalent; revisit if a macOS build hits the clash.
 
     generate_tray_translations();
 

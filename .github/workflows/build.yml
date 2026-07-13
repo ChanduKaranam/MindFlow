@@ -31,4 +31,9 @@ jobs:
             libgtk-layer-shell0 libgtk-layer-shell-dev \
             libxdo-dev patchelf
       - run: bun install
-      - run: cd src-tauri && cargo check
+      # macOS must actually link (not just check): the whisper/llama duplicate-ggml
+      # fix (dynamic-link llama dylibs, see src-tauri/build.rs) only shows at link time.
+      - if: matrix.os != 'macos-latest'
+        run: cd src-tauri && cargo check
+      - if: matrix.os == 'macos-latest'
+        run: cd src-tauri && cargo build && ls -la target/debug/*.dylib

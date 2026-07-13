@@ -115,6 +115,11 @@ winreg = "0.55"
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }
 # MindFlow is CPU-only: inherit the default transcribe-rs (whisper-cpp + onnx);
 # no Metal GPU backend.
+# dynamic-link: ld64 has no --allow-multiple-definition, so on macOS llama.cpp
+# (and its vendored ggml) is built as dylibs instead — they can't clash with
+# whisper-rs's static ggml at link time. See build.rs for the rpaths and
+# tauri.conf bundle.macOS.frameworks for bundling the dylibs.
+llama-cpp-2 = { version = "=0.1.139", features = ["dynamic-link"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
