@@ -458,6 +458,20 @@ pub struct AppSettings {
     pub noise_suppression: bool,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default = "default_true")]
+    pub ai_cleanup_enabled: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_smart: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_self_correction: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_preserve_technical: bool,
+    #[serde(default)]
+    pub cleanup_model_id: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_model() -> String {
@@ -874,6 +888,11 @@ pub fn get_default_settings() -> AppSettings {
         vad_threshold: default_vad_threshold(),
         noise_suppression: default_noise_suppression(),
         onboarding_completed: false,
+        ai_cleanup_enabled: true,
+        cleanup_smart: true,
+        cleanup_self_correction: true,
+        cleanup_preserve_technical: true,
+        cleanup_model_id: None,
     }
 }
 
@@ -1042,6 +1061,18 @@ mod tests {
         assert!(!settings.number_conversion_enabled);
     }
 
+    #[test]
+    fn ai_cleanup_defaults_on() {
+        let s = get_default_settings();
+        assert!(
+            s.ai_cleanup_enabled
+                && s.cleanup_smart
+                && s.cleanup_self_correction
+                && s.cleanup_preserve_technical
+        );
+        assert!(s.cleanup_model_id.is_none());
+    }
+
     // `reset_settings_to_defaults` writes `get_default_settings()` and returns
     // it, trusting the defaults to be deterministic. AppSettings does not derive
     // PartialEq (its nested types would all have to), so we compare the JSON
@@ -1089,7 +1120,10 @@ mod m2_cpu_defaults {
     use super::*;
     #[test]
     fn accelerator_defaults_are_cpu() {
-        assert_eq!(WhisperAcceleratorSetting::default(), WhisperAcceleratorSetting::Cpu);
+        assert_eq!(
+            WhisperAcceleratorSetting::default(),
+            WhisperAcceleratorSetting::Cpu
+        );
         assert_eq!(OrtAcceleratorSetting::default(), OrtAcceleratorSetting::Cpu);
     }
     #[test]

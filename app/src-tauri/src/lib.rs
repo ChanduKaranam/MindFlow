@@ -168,6 +168,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     );
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+    let cleanup_manager = Arc::new(cleanup::CleanupManager::new(model_manager.clone()));
 
     // Apply accelerator preferences before any model loads
     managers::transcription::apply_accelerator_settings(app_handle);
@@ -177,6 +178,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(cleanup_manager.clone());
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -408,6 +410,11 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_noise_suppression_setting,
             shortcut::change_vad_threshold_setting,
             shortcut::set_onboarding_completed,
+            shortcut::change_ai_cleanup_enabled_setting,
+            shortcut::change_cleanup_smart_setting,
+            shortcut::change_cleanup_self_correction_setting,
+            shortcut::change_cleanup_preserve_technical_setting,
+            shortcut::change_cleanup_model_setting,
             shortcut::handy_keys::start_handy_keys_recording,
             shortcut::handy_keys::stop_handy_keys_recording,
             trigger_update_check,

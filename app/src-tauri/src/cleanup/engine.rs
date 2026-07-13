@@ -10,9 +10,6 @@
 //! to it — every `LlmEngine` shares the same handle, so `load()` is safe to call
 //! any number of times, sequentially or with multiple engines alive at once.
 
-// Task 7 wires this into the cleanup pipeline; drop this allow then.
-#![allow(dead_code)]
-
 use anyhow::{anyhow, Result};
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;

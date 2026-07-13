@@ -170,6 +170,15 @@ const settingUpdaters: {
     commands.changeVadThresholdSetting(value as number),
   onboarding_completed: (value) =>
     commands.setOnboardingCompleted(value as boolean),
+  ai_cleanup_enabled: (value) =>
+    commands.changeAiCleanupEnabledSetting(value as boolean),
+  cleanup_smart: (value) => commands.changeCleanupSmartSetting(value as boolean),
+  cleanup_self_correction: (value) =>
+    commands.changeCleanupSelfCorrectionSetting(value as boolean),
+  cleanup_preserve_technical: (value) =>
+    commands.changeCleanupPreserveTechnicalSetting(value as boolean),
+  cleanup_model_id: (value) =>
+    commands.changeCleanupModelSetting(value as string | null),
 };
 
 export const useSettingsStore = create<SettingsStore>()(

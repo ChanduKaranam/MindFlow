@@ -426,6 +426,13 @@ pub(crate) async fn process_transcription_output(
     // text so corrections are visible as a diff.
     final_text = apply_rule_stages(&final_text, &settings);
 
+    // M7: local LLM cleanup (in-process, zero network). Any failure falls back
+    // to the rules-only text — dictation never blocks on the LLM.
+    let cleanup_manager = app.state::<Arc<crate::cleanup::CleanupManager>>();
+    if let Some(cleaned) = cleanup_manager.cleanup(&final_text, &settings).await {
+        final_text = cleaned;
+    }
+
     // Passes cascade: a rule's output is re-scanned by later rules, and snippets run on the
     // replacements' output. Idempotent when a `to` does not re-introduce a matched `from`.
     // M4: user-defined exact replacements (dictionary fixes for stubborn mishearings,

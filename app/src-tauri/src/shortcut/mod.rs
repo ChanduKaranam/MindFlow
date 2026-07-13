@@ -1273,3 +1273,54 @@ pub fn set_onboarding_completed(app: AppHandle, completed: bool) -> Result<(), S
     settings::write_settings(&app, settings);
     Ok(())
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_ai_cleanup_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.ai_cleanup_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_smart_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cleanup_smart = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_self_correction_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cleanup_self_correction = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_preserve_technical_setting(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cleanup_preserve_technical = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_model_setting(
+    app: AppHandle,
+    model_id: Option<String>,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cleanup_model_id = model_id;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
