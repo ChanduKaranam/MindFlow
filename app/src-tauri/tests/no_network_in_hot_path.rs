@@ -26,6 +26,7 @@ const HOT_PATH: &[&str] = &[
     "shortcut",
     "clipboard.rs",
     "input.rs",
+    "cleanup",
 ];
 
 /// Network symbols that must never appear in the hot-path. Crate/std-level

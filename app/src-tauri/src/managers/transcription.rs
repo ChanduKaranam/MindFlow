@@ -376,6 +376,11 @@ impl TranscriptionManager {
                 })?;
                 LoadedEngine::Cohere(engine)
             }
+            EngineType::TextLlm => {
+                let error_msg = "TextLlm models are cleanup models, not STT engines".to_string();
+                emit_loading_failed(&error_msg);
+                return Err(anyhow::anyhow!(error_msg));
+            }
         };
 
         // Update the current engine and model ID
