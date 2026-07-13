@@ -1,6 +1,7 @@
 //! Auto-learn: word-level diff between a transcript and the user's edit of it,
 //! extracting corrected proper nouns for the custom-words dictionary.
 
+use crate::audio_toolkit::text::COMMON_WORDS;
 use strsim::levenshtein;
 
 fn norm(w: &str) -> String {
@@ -63,7 +64,35 @@ pub fn learned_phrases(before: &str, after: &str) -> Vec<String> {
     }
 
     subs.into_iter()
-        .filter_map(|(from, to)| {
+        .filter_map(|(mut from, mut to)| {
+            // The case-sensitive walk keeps case-only fixes in the diff, so an
+            // ordinary word that was just capitalized next to a real respelling
+            // ("monday"→"Monday" beside "shandra"→"Chandra") merges into the
+            // same block and would be learned as part of the name. Pairwise-trim
+            // such common-word case fixes off both ends of equal-length blocks;
+            // unequal blocks are left as-is (conservative).
+            if from.len() == to.len() {
+                let common_case_fix = |f: &str, t: &str| {
+                    let fl = norm(f);
+                    fl == norm(t) && COMMON_WORDS.contains(fl.as_str())
+                };
+                while from
+                    .first()
+                    .zip(to.first())
+                    .is_some_and(|(f, t)| common_case_fix(f, t))
+                {
+                    from.remove(0);
+                    to.remove(0);
+                }
+                while from
+                    .last()
+                    .zip(to.last())
+                    .is_some_and(|(f, t)| common_case_fix(f, t))
+                {
+                    from.pop();
+                    to.pop();
+                }
+            }
             if from.is_empty() || to.is_empty() || from.len() > 3 || to.len() > 3 {
                 return None; // pure insert/delete or too long to be a name fix
             }
@@ -118,6 +147,24 @@ mod tests {
         // Unrelated rewording is not a mishearing fix.
         let learned = learned_phrases("we should go there tomorrow", "we could visit the site");
         assert!(learned.is_empty());
+    }
+
+    #[test]
+    fn trims_common_word_case_fix_adjacent_to_respelling() {
+        let learned = learned_phrases(
+            "i called shandra monday we met",
+            "I called Chandra Monday we met",
+        );
+        assert_eq!(learned, vec!["Chandra".to_string()]);
+    }
+
+    #[test]
+    fn trims_common_word_case_fix_across_punctuation() {
+        let learned = learned_phrases(
+            "i called shandra. monday we met",
+            "I called Chandra. Monday we met",
+        );
+        assert_eq!(learned, vec!["Chandra".to_string()]);
     }
 
     #[test]

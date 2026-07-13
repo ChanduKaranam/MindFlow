@@ -324,7 +324,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   retryTranscription,
 }) => {
   const { t, i18n } = useTranslation();
-  const { getSetting, updateSetting } = useSettings();
+  const { getSetting, updateSetting, refreshSettings } = useSettings();
   const [showCopied, setShowCopied] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -385,7 +385,6 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       return;
     }
 
-    const prevWords = (getSetting("custom_words") as string[]) ?? [];
     try {
       setSaving(true);
       const result = await commands.updateHistoryEntryText(
@@ -395,11 +394,24 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       if (result.status !== "ok") {
         throw new Error(String(result.error));
       }
-      if (result.data.length > 0) {
-        toast(t("history.learned", { words: result.data.join(", ") }), {
+      const learned = result.data;
+      if (learned.length > 0) {
+        // The backend wrote custom_words directly; pull the fresh list into
+        // the store so later frontend writes don't clobber learned words.
+        await refreshSettings();
+        toast(t("history.learned", { words: learned.join(", ") }), {
           action: {
             label: t("history.undoLearn"),
-            onClick: () => updateSetting("custom_words", prevWords),
+            onClick: () => {
+              // Remove exactly the words this edit learned from the *current*
+              // dictionary — never restore a stale snapshot.
+              const lowered = new Set(learned.map((w) => w.toLowerCase()));
+              const current = getSetting("custom_words") ?? [];
+              updateSetting(
+                "custom_words",
+                current.filter((w) => !lowered.has(w.toLowerCase())),
+              );
+            },
           },
         });
       }

@@ -6,7 +6,7 @@ use strsim::levenshtein;
 
 /// Bundled common-English-word guard: ordinary words (e.g. "china") must
 /// never be fuzzily replaced by a custom-dictionary entry (e.g. "Chandra").
-static COMMON_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+pub(crate) static COMMON_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     include_str!("data/common_words_en.txt")
         .lines()
         .map(str::trim)
