@@ -56,9 +56,15 @@ const CleanupModelStep: React.FC<Props> = ({
     }
   }, [selectedId, models, downloadingModels, verifyingModels, onDone]);
 
-  const handleDownload = (modelId: string) => {
+  const handleDownload = async (modelId: string) => {
     setSelectedId(modelId);
-    void downloadModel(modelId);
+    // Error toast is handled centrally by the model-download-failed event
+    // listener in modelStore — no toast here to avoid duplicates. Reset the
+    // selection on failure so the retry card and Skip button re-enable.
+    const success = await downloadModel(modelId);
+    if (!success) {
+      setSelectedId(null);
+    }
   };
 
   const llmModels = models.filter(
