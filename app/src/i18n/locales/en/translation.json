@@ -665,9 +665,33 @@
         "dictionary": "Dictionary (custom words)",
         "replacements": "Word replacements",
         "snippets": "Snippets",
-        "model": "Speech model"
+        "model": "Speech model",
+        "aiCleanup": "AI cleanup"
       }
     }
+  },
+  "aiCleanup": {
+    "title": "AI cleanup",
+    "description": "Rewrites each dictation locally with a small on-device model: removes fillers, fixes punctuation, honors self-corrections, and applies your dictionary spellings. No network.",
+    "master": "Enable AI cleanup",
+    "smart": "Smart cleanup (fillers & punctuation)",
+    "smartDescription": "Strips filler words like \"um\" and \"uh\", and fixes punctuation and spacing.",
+    "selfCorrection": "Self-correction (\"no wait\" backtracks)",
+    "selfCorrectionDescription": "Detects backtracks like \"no wait\" and keeps only the corrected sentence.",
+    "preserveTechnical": "Preserve technical terms",
+    "preserveTechnicalDescription": "Keeps code, jargon, and technical terms from being smoothed over during cleanup.",
+    "model": "Cleanup model",
+    "modelDescription": "Choose which on-device model performs cleanup, or let MindFlow pick automatically for your hardware.",
+    "modelAuto": "Auto (recommended for this PC)",
+    "recommendedSuffix": " — recommended for this PC",
+    "download": "Download",
+    "downloading": "Downloading… {{percent}}%",
+    "notDownloaded": "Model not downloaded — dictation uses rules-only formatting until it is.",
+    "sensitivity": "Name correction sensitivity",
+    "sensitivityDescription": "Controls how aggressively your dictionary spellings are applied to correct names and jargon.",
+    "sensitivityOff": "Off",
+    "sensitivityConservative": "Conservative",
+    "sensitivityAggressive": "Aggressive"
   },
   "footer": {
     "downloadingModel": "Downloading {{model}}...",

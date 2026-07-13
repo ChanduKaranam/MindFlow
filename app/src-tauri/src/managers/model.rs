@@ -63,6 +63,16 @@ pub struct ModelInfo {
     pub tier: Option<ModelTier>, // Curated tier (Turbo/Balanced/Max); None for uncategorised models
 }
 
+/// True if `models` contains a downloaded speech-to-text model. `TextLlm`
+/// entries are cleanup models, not STT engines, and must never count here —
+/// a TextLlm-only install has no dictation engine and must still go through
+/// full onboarding / be treated as "no models".
+pub fn has_downloaded_stt_model(models: &[ModelInfo]) -> bool {
+    models
+        .iter()
+        .any(|m| m.is_downloaded && !matches!(m.engine_type, EngineType::TextLlm))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DownloadProgress {
     pub model_id: String,
@@ -1645,6 +1655,46 @@ mod m7_cleanup_catalog {
                 "LLMs must not enter STT recommendation flows"
             );
         }
+    }
+
+    #[test]
+    fn textllm_only_download_does_not_count_as_has_models() {
+        let mut catalog = build_catalog();
+        // Only a TextLlm (cleanup) model is downloaded; every STT model is not.
+        for m in catalog.values_mut() {
+            m.is_downloaded = false;
+        }
+        let llm_id = catalog
+            .values()
+            .find(|m| matches!(m.engine_type, EngineType::TextLlm))
+            .expect("catalog must contain a TextLlm entry")
+            .id
+            .clone();
+        catalog.get_mut(&llm_id).unwrap().is_downloaded = true;
+
+        let models: Vec<ModelInfo> = catalog.into_values().collect();
+        assert!(
+            !has_downloaded_stt_model(&models),
+            "a TextLlm-only install must not be treated as having a dictation model"
+        );
+    }
+
+    #[test]
+    fn downloaded_stt_model_counts_as_has_models() {
+        let mut catalog = build_catalog();
+        for m in catalog.values_mut() {
+            m.is_downloaded = false;
+        }
+        let stt_id = catalog
+            .values()
+            .find(|m| !matches!(m.engine_type, EngineType::TextLlm))
+            .expect("catalog must contain an STT entry")
+            .id
+            .clone();
+        catalog.get_mut(&stt_id).unwrap().is_downloaded = true;
+
+        let models: Vec<ModelInfo> = catalog.into_values().collect();
+        assert!(has_downloaded_stt_model(&models));
     }
 }
 

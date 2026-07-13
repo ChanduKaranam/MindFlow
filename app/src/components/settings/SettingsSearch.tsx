@@ -89,6 +89,22 @@ const SEARCH_INDEX: IndexEntry[] = [
     section: "models",
     keywords: ["model", "whisper", "parakeet", "accuracy", "download", "speech"],
   },
+  {
+    id: "aiCleanup",
+    section: "general",
+    keywords: [
+      "ai cleanup",
+      "cleanup",
+      "filler",
+      "fillers",
+      "punctuation",
+      "llm",
+      "qwen",
+      "local model",
+      "self correction",
+      "sensitivity",
+    ],
+  },
 ];
 
 export const SettingsSearch: React.FC<Props> = ({ onJump }) => {

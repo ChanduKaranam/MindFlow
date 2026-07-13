@@ -129,10 +129,8 @@ fn should_force_show_permissions_window(app: &AppHandle) -> bool {
     #[cfg(target_os = "windows")]
     {
         let model_manager = app.state::<Arc<ModelManager>>();
-        let has_downloaded_models = model_manager
-            .get_available_models()
-            .iter()
-            .any(|model| model.is_downloaded);
+        let has_downloaded_models =
+            managers::model::has_downloaded_stt_model(&model_manager.get_available_models());
 
         if !has_downloaded_models {
             return false;
