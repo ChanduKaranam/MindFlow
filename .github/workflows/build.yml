@@ -48,6 +48,11 @@ jobs:
             https://github.com/snakers4/silero-vad/raw/v6.0/src/silero_vad/data/silero_vad.onnx
           curl -L -o src-tauri/resources/models/gtcrn_simple.onnx \
             https://github.com/Xiaobin-Rong/gtcrn/raw/main/stream/onnx_models/gtcrn_simple.onnx
+          # Two-phase: bundle.macOS.frameworks references target/release dylibs,
+          # but tauri-build copies them during handy's *build script*, which cargo
+          # runs concurrently with dependency builds — so produce the llama/ggml
+          # dylibs first (llama-cpp-sys-2's build script hardlinks them there).
+          (cd src-tauri && cargo build --release -p llama-cpp-2)
           bun run tauri build --bundles app
           APP=src-tauri/target/release/bundle/macos/MindFlow.app
           echo "--- Frameworks:"

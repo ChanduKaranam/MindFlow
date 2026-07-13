@@ -63,6 +63,13 @@ jobs:
       - name: Install frontend deps
         run: bun install
 
+      # bundle.macOS.frameworks references llama/ggml dylibs in target/release,
+      # but tauri-build copies them during handy's build script, which races the
+      # dependency builds on a clean checkout — produce the dylibs first.
+      - name: Pre-build llama dylibs (macOS)
+        if: matrix.os == 'macos-latest'
+        run: cd src-tauri && cargo build --release -p llama-cpp-2
+
       - name: Build + publish installers
         uses: tauri-apps/tauri-action@v0
         env:
