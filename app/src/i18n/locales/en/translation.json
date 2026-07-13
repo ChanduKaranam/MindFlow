@@ -527,6 +527,7 @@
       "deleteError": "Failed to delete entry. Please try again.",
       "retranscribe": "Re-transcribe",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
+      "editError": "Failed to save changes. Please try again.",
       "transcribing": "Transcribing...",
       "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon."
     },
@@ -692,6 +693,13 @@
     "sensitivityOff": "Off",
     "sensitivityConservative": "Conservative",
     "sensitivityAggressive": "Aggressive"
+  },
+  "history": {
+    "edit": "Edit transcript",
+    "save": "Save",
+    "cancel": "Cancel",
+    "learned": "Added to dictionary: {{words}}",
+    "undoLearn": "Undo"
   },
   "footer": {
     "downloadingModel": "Downloading {{model}}...",

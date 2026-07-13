@@ -12,6 +12,7 @@ mod commands;
 mod format;
 mod helpers;
 mod input;
+mod learn;
 mod llm_client;
 mod managers;
 mod overlay;
@@ -466,6 +467,7 @@ pub fn run(cli_args: CliArgs) {
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
             commands::history::retry_history_entry_transcription,
+            commands::history::update_history_entry_text,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
