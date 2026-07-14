@@ -42,6 +42,10 @@ jobs:
       # (tauri.conf.json bundle.macOS.frameworks) for the .app to launch.
       - name: macOS bundle build
         if: matrix.os == 'macos-latest'
+        env:
+          # llama.cpp's vendored cpp-httplib needs OpenSSL headers; the runner
+          # image stopped exposing them in default include paths (2026-07).
+          OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
         run: |
           mkdir -p src-tauri/resources/models
           curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
