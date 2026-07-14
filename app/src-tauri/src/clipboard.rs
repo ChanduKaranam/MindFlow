@@ -607,11 +607,65 @@ pub fn replace_last_paste(
     new_text: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    verified_select_back(old_text, &app_handle, |enigo, settings, saved_clipboard| {
+        // Selection verified: pasting replaces it natively.
+        let new_typed = if settings.append_trailing_space {
+            format!("{} ", new_text.clone())
+        } else {
+            new_text.clone()
+        };
+        let result = paste_via_clipboard(
+            enigo,
+            &new_typed,
+            &app_handle,
+            &settings.paste_method,
+            settings.paste_delay_ms,
+        );
+        // paste_via_clipboard saved/restored the sentinel; put the user's own
+        // clipboard content back.
+        if settings.clipboard_handling == ClipboardHandling::DontModify {
+            let _ = app_handle
+                .clipboard()
+                .write_text(saved_clipboard.to_string());
+        }
+        result
+    })
+}
+
+/// M9 "scratch that": delete the just-pasted text. Same verified select-back;
+/// on verification a single Delete keypress removes the selection (an
+/// empty-clipboard paste would be a no-op in most apps).
+pub fn delete_last_paste(old_text: &str, app_handle: AppHandle) -> Result<bool, String> {
+    verified_select_back(
+        old_text,
+        &app_handle,
+        |enigo, _settings, saved_clipboard| {
+            enigo
+                .key(Key::Delete, Direction::Click)
+                .map_err(|e| format!("delete key: {e}"))?;
+            let _ = app_handle
+                .clipboard()
+                .write_text(saved_clipboard.to_string());
+            Ok(())
+        },
+    )
+}
+
+/// Shared core of replace/delete-last-paste: select the previously pasted text
+/// with Shift+Left xN, copy it, verify it equals `old_text` (+ trailing space
+/// if the paste path appends one), then run `on_verified` with the selection
+/// still active. Any mismatch deselects, restores the clipboard, and returns
+/// Ok(false) — the pasted text is never touched blind.
+fn verified_select_back(
+    old_text: &str,
+    app_handle: &AppHandle,
+    on_verified: impl FnOnce(&mut Enigo, &crate::settings::AppSettings, &str) -> Result<(), String>,
+) -> Result<bool, String> {
     #[cfg(target_os = "linux")]
     if is_wayland() {
         return Ok(false);
     }
-    let settings = get_settings(&app_handle);
+    let settings = get_settings(app_handle);
     if settings.paste_method == PasteMethod::None
         || settings.paste_method == PasteMethod::ExternalScript
     {
@@ -698,29 +752,11 @@ pub fn replace_last_paste(
         // Not our text — deselect (caret back to the right end) and bail.
         let _ = enigo.key(Key::RightArrow, Direction::Click);
         let _ = clipboard.write_text(saved_clipboard);
-        info!("replace_last_paste: verification failed, leaving raw text");
+        info!("verified_select_back: verification failed, leaving text untouched");
         return Ok(false);
     }
 
-    // Selection verified: pasting replaces it natively.
-    let new_typed = if settings.append_trailing_space {
-        format!("{} ", new_text)
-    } else {
-        new_text
-    };
-    let result = paste_via_clipboard(
-        &mut enigo,
-        &new_typed,
-        &app_handle,
-        &settings.paste_method,
-        settings.paste_delay_ms,
-    );
-    // paste_via_clipboard saved/restored the sentinel; put the user's own
-    // clipboard content back.
-    if settings.clipboard_handling == ClipboardHandling::DontModify {
-        let _ = clipboard.write_text(saved_clipboard);
-    }
-    result.map(|_| true)
+    on_verified(&mut enigo, &settings, &saved_clipboard).map(|_| true)
 }
 
 /// M8 Command Mode: read the current selection in the focused app via a

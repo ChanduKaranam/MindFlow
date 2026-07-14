@@ -34,6 +34,13 @@ pub fn recommend_tier(p: &CpuProfile) -> ModelTier {
     }
 }
 
+/// Cached hardware profile — the hardware doesn't change mid-run, and the
+/// sysinfo scan is too expensive to repeat on every dictation (M9 rule 0).
+pub fn cached_cpu_profile() -> &'static CpuProfile {
+    static PROFILE: once_cell::sync::OnceCell<CpuProfile> = once_cell::sync::OnceCell::new();
+    PROFILE.get_or_init(detect_cpu_profile)
+}
+
 /// Reads the real CPU core count and total RAM from the OS via sysinfo.
 /// This is a thin detector — all logic lives in `recommend_tier`.
 pub fn detect_cpu_profile() -> CpuProfile {

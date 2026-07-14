@@ -17,7 +17,7 @@ use log::{debug, error, warn};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 
@@ -55,6 +55,84 @@ struct TranscribeAction {
 /// M8 Command Mode: the selection captured at shortcut press, consumed when
 /// the instruction transcription completes.
 pub struct CommandSelection(pub std::sync::Mutex<Option<String>>);
+
+/// M9 "scratch that": what MindFlow last put on screen (raw text form, without
+/// the optional trailing space) and when. Written ONLY inside the main-thread
+/// closures that paste/replace, so it always reflects what is really on screen
+/// even while a polish replacement is in flight.
+pub struct LastPaste(pub std::sync::Mutex<Option<(String, Instant)>>);
+
+/// Scratch-that must not outlive the user's short-term memory of what they
+/// just dictated — after this it silently does nothing.
+const SCRATCH_MAX_AGE: Duration = Duration::from_secs(120);
+
+/// Record what we just pasted so a following "scratch that" can remove it.
+/// Skipped when auto_submit is on (Enter already fired — deletion meaningless).
+fn remember_paste(app: &AppHandle, text: &str) {
+    let settings = get_settings(app);
+    if settings.auto_submit {
+        return;
+    }
+    if let Some(state) = app.try_state::<LastPaste>() {
+        if let Ok(mut guard) = state.0.lock() {
+            *guard = Some((text.to_string(), Instant::now()));
+        }
+    }
+}
+
+/// True when the utterance IS the scratch command (standalone), normalized
+/// against STT punctuation/casing. Mid-sentence "…scratch that…" stays a
+/// cleanup cue for the LLM and does not trigger deletion.
+pub(crate) fn is_scratch_cue(transcription: &str) -> bool {
+    let norm: String = transcription
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect();
+    let norm = norm.split_whitespace().collect::<Vec<_>>().join(" ");
+    matches!(
+        norm.as_str(),
+        "scratch that" | "delete that" | "undo that" | "never mind" | "nevermind"
+    )
+}
+
+/// M9 scratch-that tail: delete the previous dictation's text (verified
+/// select-back + Delete). Never pastes anything.
+fn run_scratch_that(app: &AppHandle) {
+    let last = app.try_state::<LastPaste>().and_then(|s| {
+        s.0.lock().ok().and_then(|mut g| match g.take() {
+            Some((text, at)) if at.elapsed() <= SCRATCH_MAX_AGE => Some(text),
+            _ => None,
+        })
+    });
+    let Some(text) = last else {
+        debug!("Scratch that: nothing recent to delete");
+        let _ = app.emit("scratch-that-result", "nothing");
+        utils::hide_recording_overlay(app);
+        change_tray_icon(app, TrayIconState::Idle);
+        return;
+    };
+    let ah = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        match crate::clipboard::delete_last_paste(&text, ah.clone()) {
+            Ok(true) => {
+                debug!("Scratch that: previous dictation deleted");
+                let _ = ah.emit("scratch-that-result", "deleted");
+            }
+            Ok(false) => {
+                // Verification failed or unsupported (e.g. Wayland) — never
+                // swallow the utterance silently.
+                let _ = ah.emit("scratch-that-result", "unsupported");
+            }
+            Err(e) => {
+                warn!("Scratch that failed: {e}");
+                let _ = ah.emit("scratch-that-result", "failed");
+            }
+        }
+        utils::hide_recording_overlay(&ah);
+        change_tray_icon(&ah, TrayIconState::Idle);
+    });
+}
 
 /// M8 Command Mode tail: transcription = spoken instruction. Applies it to the
 /// captured selection via the LLM; on any failure pastes NOTHING (there is no
@@ -556,6 +634,20 @@ impl ShortcutAction for TranscribeAction {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
 
+        // M9 rule 0: warm the cleanup LLM while the user speaks — delayed 1 s
+        // so the STT model load wins the first disk seconds. App startup never
+        // touches model bytes; this is the earliest moment with real intent.
+        {
+            let ah = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let settings = crate::settings::get_settings(&ah);
+                if let Some(cm) = ah.try_state::<Arc<crate::cleanup::CleanupManager>>() {
+                    cm.preload(&settings);
+                }
+            });
+        }
+
         // M8 Command Mode: grab the selection now, before any recording UI can
         // disturb focus and while the user hasn't started talking yet.
         if self.command_mode {
@@ -771,6 +863,13 @@ impl ShortcutAction for TranscribeAction {
                                 show_processing_overlay(&ah);
                             }
 
+                            // M9 "scratch that": a standalone spoken command
+                            // deletes the previous dictation instead of pasting.
+                            if is_scratch_cue(&transcription) {
+                                run_scratch_that(&ah);
+                                return;
+                            }
+
                             // M8 instant paste: deliver the deterministic text
                             // immediately, polish in place when the LLM lands.
                             let settings_snapshot = crate::settings::get_settings(&ah);
@@ -785,11 +884,14 @@ impl ShortcutAction for TranscribeAction {
                                     let q = quick.clone();
                                     let paste_time = Instant::now();
                                     let _ = ah.run_on_main_thread(move || {
-                                        match utils::paste(q, ah_clone.clone()) {
-                                            Ok(()) => debug!(
-                                                "Instant text pasted in {:?}",
-                                                paste_time.elapsed()
-                                            ),
+                                        match utils::paste(q.clone(), ah_clone.clone()) {
+                                            Ok(()) => {
+                                                debug!(
+                                                    "Instant text pasted in {:?}",
+                                                    paste_time.elapsed()
+                                                );
+                                                remember_paste(&ah_clone, &q);
+                                            }
                                             Err(e) => {
                                                 error!("Failed instant paste: {}", e);
                                                 let _ = ah_clone.emit("paste-error", ());
@@ -829,10 +931,13 @@ impl ShortcutAction for TranscribeAction {
                                     let _ = ah.run_on_main_thread(move || {
                                         match crate::clipboard::replace_last_paste(
                                             &prev,
-                                            final_text,
+                                            final_text.clone(),
                                             ah_clone.clone(),
                                         ) {
-                                            Ok(true) => debug!("Polished text replaced in place"),
+                                            Ok(true) => {
+                                                debug!("Polished text replaced in place");
+                                                remember_paste(&ah_clone, &final_text);
+                                            }
                                             Ok(false) => {
                                                 debug!("Polish skipped (guard), raw text kept")
                                             }
@@ -850,11 +955,14 @@ impl ShortcutAction for TranscribeAction {
                                 let paste_time = Instant::now();
                                 let final_text = processed.final_text;
                                 ah.run_on_main_thread(move || {
-                                    match utils::paste(final_text, ah_clone.clone()) {
-                                        Ok(()) => debug!(
-                                            "Text pasted successfully in {:?}",
-                                            paste_time.elapsed()
-                                        ),
+                                    match utils::paste(final_text.clone(), ah_clone.clone()) {
+                                        Ok(()) => {
+                                            debug!(
+                                                "Text pasted successfully in {:?}",
+                                                paste_time.elapsed()
+                                            );
+                                            remember_paste(&ah_clone, &final_text);
+                                        }
                                         Err(e) => {
                                             error!("Failed to paste transcription: {}", e);
                                             let _ = ah_clone.emit("paste-error", ());
@@ -973,6 +1081,29 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+#[cfg(test)]
+mod scratch_tests {
+    use super::is_scratch_cue;
+
+    #[test]
+    fn standalone_cues_trigger() {
+        assert!(is_scratch_cue("Scratch that."));
+        assert!(is_scratch_cue("scratch that"));
+        assert!(is_scratch_cue("Delete that!"));
+        assert!(is_scratch_cue("Undo that"));
+        assert!(is_scratch_cue("Never mind."));
+        assert!(is_scratch_cue("Nevermind"));
+    }
+
+    #[test]
+    fn embedded_or_other_text_does_not_trigger() {
+        assert!(!is_scratch_cue("ship it friday scratch that monday"));
+        assert!(!is_scratch_cue("please scratch that from the record"));
+        assert!(!is_scratch_cue("hello world"));
+        assert!(!is_scratch_cue(""));
+    }
+}
 
 #[cfg(test)]
 mod tests {

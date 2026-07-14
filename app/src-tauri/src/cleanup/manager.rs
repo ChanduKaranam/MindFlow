@@ -121,13 +121,9 @@ impl CleanupManager {
         let max_tokens = (sel_words * 3 + 256).clamp(256, 2048);
 
         let engine_slot = Arc::clone(&self.engine);
-        let timeout_budget = {
-            let guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
-            if matches!(&*guard, Some((id, _)) if *id == model_id) {
-                GENERATION_TIMEOUT
-            } else {
-                GENERATION_TIMEOUT + LOAD_ALLOWANCE
-            }
+        let timeout_budget = match engine_slot.try_lock() {
+            Ok(guard) if matches!(&*guard, Some((id, _)) if *id == model_id) => GENERATION_TIMEOUT,
+            _ => GENERATION_TIMEOUT + LOAD_ALLOWANCE,
         };
         let task = tauri::async_runtime::spawn_blocking(move || -> Result<String> {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -137,7 +133,8 @@ impl CleanupManager {
                     *guard = Some((model_id.clone(), LlmEngine::load(&path)?));
                 }
                 let (_, engine) = guard.as_ref().expect("just loaded");
-                engine.generate(&prompt, max_tokens)
+                // Command Mode: the user is actively waiting — full speed.
+                engine.generate(&prompt, max_tokens, None)
             }));
             match outcome {
                 Ok(r) => r,
@@ -178,7 +175,7 @@ impl CleanupManager {
     fn resolve_model_id(&self, settings: &AppSettings) -> Option<String> {
         let preferred = settings.cleanup_model_id.clone().unwrap_or_else(|| {
             crate::cleanup::default_cleanup_model_id(crate::stt_tier::recommend_tier(
-                &crate::stt_tier::detect_cpu_profile(),
+                crate::stt_tier::cached_cpu_profile(),
             ))
             .to_string()
         });
@@ -237,16 +234,20 @@ impl CleanupManager {
         let n_chunks = chunks.len().max(1) as u32;
 
         let engine_slot = Arc::clone(&self.engine);
-        let timeout_budget = {
-            let guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
-            let load = if matches!(&*guard, Some((id, _)) if *id == model_id) {
-                Duration::ZERO
-            } else {
-                LOAD_ALLOWANCE
-            };
-            load + GENERATION_TIMEOUT * n_chunks
+        // try_lock: a recording-start preload holds this mutex for the whole
+        // GGUF load — never stall the dictation task on it; on contention just
+        // assume the load allowance (M9 rule 0 review finding).
+        let timeout_budget = match engine_slot.try_lock() {
+            Ok(guard) if matches!(&*guard, Some((id, _)) if *id == model_id) => {
+                GENERATION_TIMEOUT * n_chunks
+            }
+            _ => LOAD_ALLOWANCE + GENERATION_TIMEOUT * n_chunks,
         };
         let chunks_for_task = chunks.clone();
+        // Background polish has no latency SLA once instant paste delivered the
+        // text — use half the cores so the machine stays responsive (M9 rule 0).
+        let polish_threads =
+            Some((crate::stt_tier::cached_cpu_profile().physical_cores / 2).max(1) as i32);
         let task = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<Option<String>>> {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
@@ -261,7 +262,7 @@ impl CleanupManager {
                     let max_tokens = (chunk.split_whitespace().count() * 3).clamp(64, 512);
                     // A failed chunk falls back alone; only a load error above
                     // aborts the whole pass.
-                    outs.push(match engine.generate(&prompt, max_tokens) {
+                    outs.push(match engine.generate(&prompt, max_tokens, polish_threads) {
                         Ok(raw) => {
                             let cleaned = strip_think(&raw);
                             is_sane_output(&cleaned, chunk).then_some(cleaned)

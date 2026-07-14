@@ -180,10 +180,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(history_manager.clone());
     app_handle.manage(cleanup_manager.clone());
     app_handle.manage(actions::CommandSelection(std::sync::Mutex::new(None)));
+    app_handle.manage(actions::LastPaste(std::sync::Mutex::new(None)));
 
-    // M8: warm the cleanup LLM in the background (first dictation shouldn't
-    // pay the GGUF load) and return its RAM on the same idle policy as STT.
-    cleanup_manager.preload(&crate::settings::get_settings(app_handle));
+    // M9 rule 0: NO model bytes are touched at app startup — the cleanup LLM
+    // preloads at recording start instead (actions.rs), overlapping the user
+    // speaking. Here we only arm the idle unloader.
     {
         let app_handle_c = app_handle.clone();
         let cleanup_c = cleanup_manager.clone();
@@ -384,7 +385,7 @@ fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
 fn recommended_tier_cmd() -> Result<String, String> {
     Ok(
         crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(
-            &crate::stt_tier::detect_cpu_profile(),
+            crate::stt_tier::cached_cpu_profile(),
         ))
         .to_string(),
     )

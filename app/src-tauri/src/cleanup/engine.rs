@@ -43,15 +43,23 @@ impl LlmEngine {
         let params = LlamaModelParams::default().with_n_gpu_layers(0);
         let model = LlamaModel::load_from_file(backend, model_path, &params)
             .map_err(|e| anyhow!("failed to load LLM model: {e}"))?;
-        let n_threads = crate::stt_tier::detect_cpu_profile()
+        let n_threads = crate::stt_tier::cached_cpu_profile()
             .physical_cores
             .saturating_sub(1)
             .max(1) as i32;
         Ok(Self { model, n_threads })
     }
 
-    pub fn generate(&self, prompt: &str, max_tokens: usize) -> Result<String> {
+    /// `n_threads_override`: Some(n) throttles this call (background polish
+    /// runs on half the cores per M9 rule 0); None = full default speed.
+    pub fn generate(
+        &self,
+        prompt: &str,
+        max_tokens: usize,
+        n_threads_override: Option<i32>,
+    ) -> Result<String> {
         let backend = backend()?;
+        let n_threads = n_threads_override.unwrap_or(self.n_threads).max(1);
         let tokens = self.model.str_to_token(prompt, AddBos::Never)?;
         // Clamp to the model's trained context so an unusually long prompt can't
         // ask llama.cpp for a context size it doesn't support.
@@ -60,8 +68,8 @@ impl LlmEngine {
             .min(self.model.n_ctx_train());
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
-            .with_n_threads(self.n_threads)
-            .with_n_threads_batch(self.n_threads);
+            .with_n_threads(n_threads)
+            .with_n_threads_batch(n_threads);
         let mut ctx = self.model.new_context(backend, ctx_params)?;
 
         let mut batch = LlamaBatch::new(tokens.len().max(512), 1);
@@ -133,7 +141,7 @@ mod tests {
             ),
             "um so I think we should uh ship it on friday",
         );
-        let out = crate::cleanup::strip_think(&engine.generate(&prompt, 256).unwrap());
+        let out = crate::cleanup::strip_think(&engine.generate(&prompt, 256, None).unwrap());
         assert!(!out.is_empty());
         assert!(!out.to_lowercase().contains("um "), "got: {out}");
     }
