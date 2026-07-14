@@ -72,6 +72,9 @@ jobs:
           # llama.cpp's vendored cpp-httplib needs OpenSSL headers; the runner
           # image stopped exposing them in default include paths (2026-07).
           OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
         run: cd src-tauri && cargo build --release -p llama-cpp-2
 
       - name: Build + publish installers
@@ -79,6 +82,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}

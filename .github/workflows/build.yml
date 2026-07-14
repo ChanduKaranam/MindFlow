@@ -20,6 +20,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: app/src-tauri
+          # Bumped to drop caches whose cmake config predates the OpenSSL hint.
+          prefix-key: v1-openssl
       # CPU-only build: whisper.cpp (CPU) via whisper-rs needs cmake + libclang (bindgen);
       # the rest are Tauri/enigo/gtk-layer-shell/alsa runtime+build deps. No Vulkan/GPU SDK.
       - name: Linux system deps
@@ -46,6 +48,9 @@ jobs:
           # llama.cpp's vendored cpp-httplib needs OpenSSL headers; the runner
           # image stopped exposing them in default include paths (2026-07).
           OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
         run: |
           mkdir -p src-tauri/resources/models
           curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
