@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { useSettings } from "../../../hooks/useSettings";
 import { useModelStore } from "../../../stores/modelStore";
 import { commands, type ModelInfo } from "@/bindings";
+import { ModelCard, type ModelCardStatus } from "../../onboarding";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { Dropdown, type DropdownOption } from "../../ui/Dropdown";
-import { Button } from "../../ui/Button";
 import { Alert } from "../../ui/Alert";
 
 const SENSITIVITY = { off: 0, conservative: 0.18, aggressive: 0.35 } as const;
@@ -28,9 +29,21 @@ const INTENSITY_FLAGS: Record<string, [boolean, boolean, boolean]> = {
 export const AiCleanup: React.FC = React.memo(() => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
-  const { models, downloadModel, downloadingModels, downloadProgress } =
-    useModelStore();
+  const {
+    models,
+    downloadModel,
+    cancelDownload,
+    deleteModel,
+    downloadingModels,
+    downloadProgress,
+    downloadStats,
+    verifyingModels,
+    extractingModels,
+  } = useModelStore();
   const [recommendedTier, setRecommendedTier] = useState<string | null>(null);
+  // Model whose download the user started from this card list; auto-selected
+  // as the cleanup model once its download finishes (Onboarding.tsx pattern).
+  const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
 
   useEffect(() => {
     commands.recommendedTierCmd().then((result) => {
@@ -54,22 +67,66 @@ export const AiCleanup: React.FC = React.memo(() => {
   const fallbackModel = llmModels
     .filter((m) => m.is_downloaded)
     .sort((a, b) => Number(b.size_mb) - Number(a.size_mb))[0];
-  const undownloadedModels = llmModels.filter((m) => !m.is_downloaded);
+  // What Auto runs on right now: the tier default if downloaded, else the
+  // largest downloaded model.
+  const autoResolvedModel = preferredModel?.is_downloaded
+    ? preferredModel
+    : fallbackModel;
+
+  // Auto-select a model the user downloaded from this list once it lands.
+  useEffect(() => {
+    if (!pendingSelectId) return;
+    const model = llmModels.find((m) => m.id === pendingSelectId);
+    const stillBusy =
+      pendingSelectId in downloadingModels ||
+      pendingSelectId in verifyingModels ||
+      pendingSelectId in extractingModels;
+    if (stillBusy) return;
+    if (model?.is_downloaded) {
+      updateSetting("cleanup_model_id", pendingSelectId);
+    }
+    setPendingSelectId(null);
+  }, [
+    pendingSelectId,
+    llmModels,
+    downloadingModels,
+    verifyingModels,
+    extractingModels,
+    updateSetting,
+  ]);
+
+  const getModelStatus = (m: ModelInfo): ModelCardStatus => {
+    if (m.id in extractingModels) return "extracting";
+    if (m.id in verifyingModels) return "verifying";
+    if (m.id in downloadingModels) return "downloading";
+    if (m.id === modelId) return "active";
+    if (m.is_downloaded) return "available";
+    return "downloadable";
+  };
+
+  const handleModelDownload = (id: string) => {
+    setPendingSelectId(id);
+    downloadModel(id);
+  };
+
+  const handleModelDelete = async (id: string) => {
+    const model = llmModels.find((m) => m.id === id);
+    const modelName = model?.name || id;
+    const confirmed = await ask(
+      t("settings.models.deleteConfirm", { modelName }),
+      { title: t("settings.models.deleteTitle"), kind: "warning" },
+    );
+    if (!confirmed) return;
+    try {
+      await deleteModel(id);
+    } catch (err) {
+      console.error(`Failed to delete model ${id}:`, err);
+    }
+    if (id === modelId) updateSetting("cleanup_model_id", null);
+  };
 
   const sensitivity: SensitivityKey =
     threshold === 0 ? "off" : threshold > 0.25 ? "aggressive" : "conservative";
-
-  const modelOptions: DropdownOption[] = [
-    { value: "", label: t("aiCleanup.modelAuto") },
-    ...llmModels.map((m) => ({
-      value: m.id,
-      label: `${m.name} (${Number(m.size_mb)} MB)${
-        m.tier && m.tier === recommendedTier
-          ? t("aiCleanup.recommendedSuffix")
-          : ""
-      }`,
-    })),
-  ];
 
   // The knob is a preset writer over the three flags; when the flags no
   // longer match the preset the knob last wrote, it reads "custom".
@@ -179,38 +236,56 @@ export const AiCleanup: React.FC = React.memo(() => {
             layout="stacked"
             grouped
           >
-            <div className="space-y-2">
-              <Dropdown
-                options={modelOptions}
-                selectedValue={modelId ?? ""}
-                onSelect={(value) =>
-                  updateSetting("cleanup_model_id", value || null)
-                }
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => updateSetting("cleanup_model_id", null)}
                 disabled={isUpdating("cleanup_model_id")}
-              />
-              {undownloadedModels.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {undownloadedModels.map((m) => {
-                    const isDownloading = m.id in downloadingModels;
-                    const percent = Math.round(
-                      downloadProgress[m.id]?.percentage ?? 0,
-                    );
-                    return (
-                      <Button
-                        key={m.id}
-                        variant="secondary"
-                        size="sm"
-                        disabled={isDownloading}
-                        onClick={() => downloadModel(m.id)}
-                      >
-                        {isDownloading
-                          ? t("aiCleanup.downloading", { percent })
-                          : `${t("aiCleanup.download")} ${m.name}`}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
+                className={`flex items-center justify-between w-full rounded-xl border-2 px-4 py-2 text-sm text-left transition-all duration-200 ${
+                  modelId === null
+                    ? "border-accent/50 bg-accent/10"
+                    : "border-border cursor-pointer hover:border-accent/50 hover:bg-accent/5"
+                }`}
+              >
+                <span className="font-medium text-text">
+                  {t("aiCleanup.modelAutoCard")}
+                </span>
+                {modelId === null && autoResolvedModel && (
+                  <span className="text-xs text-text/60">
+                    {t("aiCleanup.resolvesTo", {
+                      name: autoResolvedModel.name,
+                    })}
+                  </span>
+                )}
+              </button>
+              {llmModels.map((m) => {
+                const isRecommendedForCpu =
+                  recommendedTier !== null && m.tier === recommendedTier;
+                const isAutoResolved =
+                  modelId === null && m.id === autoResolvedModel?.id;
+                return (
+                  <div key={m.id}>
+                    {isRecommendedForCpu && (
+                      <div className="text-xs text-accent font-medium mb-1 text-start">
+                        {t("onboarding.recommendedForYourPc")}
+                      </div>
+                    )}
+                    <ModelCard
+                      model={m}
+                      variant={isAutoResolved ? "featured" : "default"}
+                      status={getModelStatus(m)}
+                      disabled={isUpdating("cleanup_model_id")}
+                      onSelect={(id) => updateSetting("cleanup_model_id", id)}
+                      onDownload={handleModelDownload}
+                      onDelete={handleModelDelete}
+                      onCancel={cancelDownload}
+                      downloadProgress={downloadProgress[m.id]?.percentage}
+                      downloadSpeed={downloadStats[m.id]?.speed}
+                      showRecommended={false}
+                    />
+                  </div>
+                );
+              })}
               {preferredModel && !preferredModel.is_downloaded && (
                 <Alert variant="warning" contained>
                   {fallbackModel

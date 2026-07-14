@@ -702,6 +702,8 @@
     "model": "Cleanup model",
     "modelDescription": "Choose which on-device model performs cleanup, or let MindFlow pick automatically for your hardware.",
     "modelAuto": "Auto (recommended for this PC)",
+    "modelAutoCard": "Auto — best downloaded model",
+    "resolvesTo": "Currently: {{name}}",
     "recommendedSuffix": " — recommended for this PC",
     "download": "Download",
     "downloading": "Downloading… {{percent}}%",
