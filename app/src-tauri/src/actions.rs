@@ -68,7 +68,7 @@ const SCRATCH_MAX_AGE: Duration = Duration::from_secs(120);
 
 /// Record what we just pasted so a following "scratch that" can remove it.
 /// Skipped when auto_submit is on (Enter already fired — deletion meaningless).
-fn remember_paste(app: &AppHandle, text: &str) {
+pub(crate) fn remember_paste(app: &AppHandle, text: &str) {
     let settings = get_settings(app);
     if settings.auto_submit {
         return;
@@ -134,6 +134,20 @@ fn run_scratch_that(app: &AppHandle) {
     });
 }
 
+/// M9 Transforms: a spoken Command Mode instruction that (lowercased,
+/// punctuation-trimmed) exactly equals a transform's name runs that
+/// transform's prompt instead.
+pub(crate) fn match_transform<'a>(
+    instruction: &str,
+    transforms: &'a [crate::settings::Transform],
+) -> Option<&'a crate::settings::Transform> {
+    let norm = instruction
+        .trim()
+        .trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase();
+    transforms.iter().find(|t| t.name.to_lowercase() == norm)
+}
+
 /// M8 Command Mode tail: transcription = spoken instruction. Applies it to the
 /// captured selection via the LLM; on any failure pastes NOTHING (there is no
 /// raw text worth typing) and notifies the frontend.
@@ -149,11 +163,17 @@ async fn run_command_mode(
         .try_state::<CommandSelection>()
         .and_then(|s| s.0.lock().ok().and_then(|mut g| g.take()));
     let settings = get_settings(app);
+    // M9 Transforms: a spoken transform name ("polish") runs its prompt.
+    // History still records what was actually spoken.
+    let effective_instruction = match match_transform(instruction, &settings.transforms) {
+        Some(t) => t.prompt.as_str(),
+        None => instruction,
+    };
     let result = {
         let cm = app.state::<Arc<crate::cleanup::CleanupManager>>();
         let _ = app.emit("cleanup-state-changed", "polishing");
         let r = cm
-            .run_command(instruction, selection.clone(), &settings)
+            .run_command(effective_instruction, selection.clone(), &settings)
             .await;
         let _ = app.emit("cleanup-state-changed", "idle");
         r
@@ -588,12 +608,24 @@ pub(crate) async fn process_transcription_output(
 
     // M7: local LLM cleanup (in-process, zero network). Any failure falls back
     // to the rules-only text — dictation never blocks on the LLM.
+    // M9: the context captured at recording start rides along (prompt-only;
+    // the deterministic quick_transcription_output path is unaffected).
+    let context = app
+        .try_state::<crate::context_capture::DictationContext>()
+        .and_then(|s| s.0.lock().ok().and_then(|mut g| g.take()));
     let cleanup_manager = app.state::<Arc<crate::cleanup::CleanupManager>>();
     let _ = app.emit("cleanup-state-changed", "polishing");
-    if let Some(cleaned) = cleanup_manager.cleanup(&final_text, &settings).await {
+    if let Some(cleaned) = cleanup_manager
+        .cleanup(&final_text, &settings, context.as_ref())
+        .await
+    {
         final_text = cleaned;
     }
     let _ = app.emit("cleanup-state-changed", "idle");
+    // M9 audit: record which sources were injected (never the content).
+    if let Some(ctx) = context.filter(|c| !c.is_empty()) {
+        let _ = app.emit("context-used", ctx.sources());
+    }
 
     // Passes cascade: a rule's output is re-scanned by later rules, and snippets run on the
     // replacements' output. Idempotent when a `to` does not re-introduce a matched `from`.
@@ -660,6 +692,26 @@ impl ShortcutAction for TranscribeAction {
                     }
                 }
             });
+        }
+
+        // M9 privacy-safe context: capture the enabled sources now, on the
+        // main thread (selection capture simulates Ctrl+C), before recording
+        // UI can disturb focus. Command Mode has its own selection capture.
+        if !self.command_mode {
+            let s = get_settings(app);
+            if s.context_window_title || s.context_selection || s.context_clipboard {
+                let ah = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    let settings = get_settings(&ah);
+                    let ctx = crate::context_capture::capture(&ah, &settings);
+                    if let Some(state) = ah.try_state::<crate::context_capture::DictationContext>()
+                    {
+                        if let Ok(mut guard) = state.0.lock() {
+                            *guard = Some(ctx);
+                        }
+                    }
+                });
+            }
         }
 
         // Load model in the background
@@ -1081,6 +1133,39 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+#[cfg(test)]
+mod transform_tests {
+    use super::match_transform;
+    use crate::settings::Transform;
+
+    #[test]
+    fn spoken_name_matches_case_insensitively_with_punctuation() {
+        let transforms = vec![
+            Transform {
+                id: "polish".into(),
+                name: "Polish".into(),
+                prompt: "P".into(),
+            },
+            Transform {
+                id: "bullets".into(),
+                name: "Bullet points".into(),
+                prompt: "B".into(),
+            },
+        ];
+        assert_eq!(
+            match_transform("Polish.", &transforms).map(|t| t.id.as_str()),
+            Some("polish")
+        );
+        assert_eq!(
+            match_transform("bullet points", &transforms).map(|t| t.id.as_str()),
+            Some("bullets")
+        );
+        // Longer instructions containing a name are NOT a match.
+        assert!(match_transform("polish this paragraph", &transforms).is_none());
+        assert!(match_transform("", &transforms).is_none());
+    }
+}
 
 #[cfg(test)]
 mod scratch_tests {

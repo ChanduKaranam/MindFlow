@@ -67,6 +67,7 @@ pub fn build_system_prompt(
     flags: &CleanupFlags,
     custom_words: &[String],
     tone_rule: &str,
+    high_intensity: bool,
 ) -> String {
     let mut p = String::from(
         "You are a text filter, not an assistant. The user's message is a raw \
@@ -103,6 +104,12 @@ pub fn build_system_prompt(
              \"at rate\", or \"at the rate\" become just \"@\" (\"x at rate y.in\" → \
              \"x@y.in\"). IDs dictated letter-by-letter are UPPERCASE (FLOW-2026). \
              Times use colons: \"10.30 a.m.\" → \"10:30 AM\".\n",
+        );
+    }
+    // M9 "High" intensity: everything Medium does plus a clarity rewrite.
+    if high_intensity {
+        p.push_str(
+            "- Rewrite for clarity: tighten rambling phrasing and split run-on sentences, without dropping any information.\n",
         );
     }
     // M8 per-app tone (empty for the default category).
@@ -336,9 +343,17 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_dictionary_and_guard() {
-        let p = build_system_prompt(&all_flags(), &["Purna".into(), "Tilicho".into()], "");
+        let p = build_system_prompt(&all_flags(), &["Purna".into(), "Tilicho".into()], "", false);
         assert!(p.contains("Purna, Tilicho"));
         assert!(p.contains("not an assistant"));
+    }
+
+    #[test]
+    fn high_intensity_adds_clarity_rule() {
+        let with = build_system_prompt(&all_flags(), &[], "", true);
+        let without = build_system_prompt(&all_flags(), &[], "", false);
+        assert!(with.contains("Rewrite for clarity"));
+        assert!(!without.contains("Rewrite for clarity"));
     }
 
     #[test]
@@ -351,6 +366,7 @@ mod tests {
             },
             &[],
             "",
+            false,
         );
         assert!(p.contains("filler"));
         assert!(!p.contains("retracts"));

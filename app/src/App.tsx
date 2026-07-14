@@ -181,6 +181,33 @@ function App() {
     };
   }, [t]);
 
+  // M9: "scratch that" outcome + Command Mode failure toasts
+  useEffect(() => {
+    const unlistenScratch = listen<string>("scratch-that-result", (event) => {
+      switch (event.payload) {
+        case "deleted":
+          toast.success(t("toasts.scratchDeleted"));
+          break;
+        case "nothing":
+          toast.info(t("toasts.scratchNothing"));
+          break;
+        case "unsupported":
+          toast.info(t("toasts.scratchUnsupported"));
+          break;
+        case "failed":
+          toast.error(t("toasts.scratchFailed"));
+          break;
+      }
+    });
+    const unlistenCommand = listen("command-mode-failed", () => {
+      toast.error(t("toasts.commandFailed"));
+    });
+    return () => {
+      unlistenScratch.then((fn) => fn());
+      unlistenCommand.then((fn) => fn());
+    };
+  }, [t]);
+
   // Listen for model loading failures and show a toast
   useEffect(() => {
     const unlisten = listen<ModelStateEvent>("model-state-changed", (event) => {

@@ -316,6 +316,10 @@
         "title": "Microphone sensitivity",
         "description": "Higher catches softer speech; lower ignores more background noise."
       },
+      "quietMode": {
+        "title": "Quiet mode (whispering)",
+        "description": "Boosts microphone gain and lowers the voice threshold so whispered dictation is picked up."
+      },
       "noiseSuppression": {
         "title": "Noise suppression",
         "description": "Automatically remove background noise so your voice is captured clearly."
@@ -672,7 +676,9 @@
         "replacements": "Word replacements",
         "snippets": "Snippets",
         "model": "Speech model",
-        "aiCleanup": "AI cleanup"
+        "aiCleanup": "AI cleanup",
+        "transforms": "Transforms",
+        "context": "Context awareness"
       }
     }
   },
@@ -680,6 +686,13 @@
     "title": "AI cleanup",
     "description": "Rewrites each dictation locally with a small on-device model: removes fillers, fixes punctuation, honors self-corrections, and applies your dictionary spellings. No network.",
     "master": "Enable AI cleanup",
+    "intensity": "Cleanup intensity",
+    "intensityDescription": "One knob over the cleanup behaviors below. Adjusting the individual toggles switches this to Custom.",
+    "intensityOff": "Off",
+    "intensityLight": "Light",
+    "intensityMedium": "Medium",
+    "intensityHigh": "High",
+    "intensityCustom": "Custom",
     "smart": "Smart cleanup (fillers & punctuation)",
     "smartDescription": "Strips filler words like \"um\" and \"uh\", and fixes punctuation and spacing.",
     "selfCorrection": "Self-correction (\"no wait\" backtracks)",
@@ -716,7 +729,48 @@
     "save": "Save",
     "cancel": "Cancel",
     "learned": "Added to dictionary: {{words}}",
-    "undoLearn": "Undo"
+    "undoLearn": "Undo",
+    "diff": "Show AI edits",
+    "diffHide": "Hide AI edits",
+    "copyRaw": "Copy raw"
+  },
+  "transforms": {
+    "title": "Transforms",
+    "listTitle": "Named transforms",
+    "description": "Named prompts you can run on selected text via Command Mode. Add your own or edit the presets.",
+    "namePlaceholder": "Name (e.g. Polish)",
+    "promptPlaceholder": "Prompt (e.g. Rewrite this text to be clearer)",
+    "add": "Add",
+    "remove": "Remove {{name}}",
+    "runHint": "Run on selection: hold the Command Mode shortcut and speak a transform's name."
+  },
+  "contextAwareness": {
+    "title": "Context awareness",
+    "description": "Optionally lets AI cleanup see hints about where you're dictating, to resolve names and terms. Everything stays on this device — nothing is sent anywhere.",
+    "windowTitle": "Window title",
+    "windowTitleDescription": "Use the focused window's title as a hint during cleanup.",
+    "selection": "Selected text",
+    "selectionDescription": "Use the text selected when recording starts. Skipped in terminals, where the copy shortcut could interrupt a running process.",
+    "clipboard": "Clipboard",
+    "clipboardDescription": "Use the current clipboard text as a hint during cleanup.",
+    "lastUsed": "Last dictation used:",
+    "source": {
+      "window_title": "Window title",
+      "selection": "Selection",
+      "clipboard": "Clipboard"
+    }
+  },
+  "insights": {
+    "dictations": "Dictations",
+    "words": "Words dictated",
+    "wordsPerDictation": "Words per dictation"
+  },
+  "toasts": {
+    "scratchDeleted": "Last dictation deleted",
+    "scratchNothing": "Nothing to scratch — no recent dictation",
+    "scratchUnsupported": "Scratch that isn't supported here",
+    "scratchFailed": "Couldn't delete the last dictation",
+    "commandFailed": "Command Mode couldn't complete"
   },
   "footer": {
     "downloadingModel": "Downloading {{model}}...",

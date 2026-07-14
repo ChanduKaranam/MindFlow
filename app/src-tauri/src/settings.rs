@@ -88,6 +88,13 @@ pub struct ShortcutBinding {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct Transform {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct LLMPrompt {
     pub id: String,
     pub name: String,
@@ -475,6 +482,24 @@ pub struct AppSettings {
     /// M8: adapt cleanup tone to the focused app's category (email/chat/code…).
     #[serde(default = "default_true")]
     pub app_tone_enabled: bool,
+    /// M9: cleanup intensity preset — "off" / "light" / "medium" / "high" /
+    /// "custom". Plain String (not an enum) for bindings simplicity.
+    #[serde(default = "default_cleanup_intensity")]
+    pub cleanup_intensity: String,
+    /// M9: named Command Mode transforms (presets + user-defined).
+    #[serde(default = "default_transforms")]
+    pub transforms: Vec<Transform>,
+    /// M9 privacy-safe context: independent, default-OFF sources injected into
+    /// the cleanup prompt (never transcribed, never leaves the machine).
+    #[serde(default)]
+    pub context_window_title: bool,
+    #[serde(default)]
+    pub context_selection: bool,
+    #[serde(default)]
+    pub context_clipboard: bool,
+    /// M9 whisper-quiet preset: lower VAD threshold + input gain boost.
+    #[serde(default)]
+    pub quiet_mode: bool,
 }
 
 fn default_true() -> bool {
@@ -693,6 +718,40 @@ fn default_post_process_prompts() -> Vec<LLMPrompt> {
         name: "Improve Transcriptions".to_string(),
         prompt: "Clean this transcript:\n1. Fix spelling, capitalization, and punctuation errors\n2. Convert number words to digits (twenty-five → 25, ten percent → 10%, five dollars → $5)\n3. Replace spoken punctuation with symbols (period → ., comma → ,, question mark → ?)\n4. Remove filler words (um, uh, like as filler)\n5. Keep the language in the original version (if it was french, keep it in french for example)\n\nPreserve exact meaning and word order. Do not paraphrase or reorder content.\n\nReturn only the cleaned transcript.\n\nTranscript:\n${output}".to_string(),
     }]
+}
+
+fn default_cleanup_intensity() -> String {
+    "medium".to_string()
+}
+
+fn default_transforms() -> Vec<Transform> {
+    let t = |id: &str, name: &str, prompt: &str| Transform {
+        id: id.to_string(),
+        name: name.to_string(),
+        prompt: prompt.to_string(),
+    };
+    vec![
+        t(
+            "polish",
+            "Polish",
+            "Polish this text: fix grammar and improve flow without changing meaning.",
+        ),
+        t(
+            "shorten",
+            "Shorten",
+            "Make this text significantly shorter while keeping all key information.",
+        ),
+        t(
+            "bullets",
+            "Bullet points",
+            "Convert this text into concise bullet points.",
+        ),
+        t(
+            "grammar",
+            "Fix grammar",
+            "Fix spelling and grammar mistakes only; change nothing else.",
+        ),
+    ]
 }
 
 fn default_whisper_gpu_device() -> i32 {
@@ -914,6 +973,12 @@ pub fn get_default_settings() -> AppSettings {
         cleanup_model_id: None,
         instant_paste: true,
         app_tone_enabled: true,
+        cleanup_intensity: default_cleanup_intensity(),
+        transforms: default_transforms(),
+        context_window_title: false,
+        context_selection: false,
+        context_clipboard: false,
+        quiet_mode: false,
     }
 }
 
@@ -1092,6 +1157,22 @@ mod tests {
                 && s.cleanup_preserve_technical
         );
         assert!(s.cleanup_model_id.is_none());
+    }
+
+    #[test]
+    fn m9_defaults() {
+        let s = get_default_settings();
+        assert_eq!(s.cleanup_intensity, "medium");
+        assert_eq!(
+            s.transforms
+                .iter()
+                .map(|t| t.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["polish", "shorten", "bullets", "grammar"]
+        );
+        // Privacy-safe context and quiet mode are strictly opt-in.
+        assert!(!s.context_window_title && !s.context_selection && !s.context_clipboard);
+        assert!(!s.quiet_mode);
     }
 
     // `reset_settings_to_defaults` writes `get_default_settings()` and returns

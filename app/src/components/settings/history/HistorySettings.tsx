@@ -4,6 +4,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import {
   Check,
   Copy,
+  FileDiff,
   FolderOpen,
   Pencil,
   RotateCcw,
@@ -22,8 +23,10 @@ import {
 import { useOsType } from "@/hooks/useOsType";
 import { useSettings } from "@/hooks/useSettings";
 import { formatDateTime } from "@/utils/dateFormat";
+import { diffWords } from "@/utils/diffWords";
 import { AudioPlayer } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { Insights } from "../insights/Insights";
 
 const IconButton: React.FC<{
   onClick: () => void;
@@ -286,6 +289,7 @@ export const HistorySettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
+      <Insights />
       <div className="space-y-2">
         <div className="px-4 flex items-center justify-between">
           <div>
@@ -330,9 +334,14 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const [editing, setEditing] = useState(false);
   const [editedText, setEditedText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
 
   const displayedText = entry.post_processed_text ?? entry.transcription_text;
   const hasTranscription = displayedText.trim().length > 0;
+  // Diff is only meaningful when AI cleanup actually changed something.
+  const hasDiff =
+    entry.post_processed_text != null &&
+    entry.post_processed_text !== entry.transcription_text;
 
   const handleLoadAudio = useCallback(
     () => getAudioUrl(entry.file_name),
@@ -446,6 +455,16 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           >
             <Pencil width={16} height={16} />
           </IconButton>
+          {hasDiff && (
+            <IconButton
+              onClick={() => setShowDiff((v) => !v)}
+              disabled={retrying || editing}
+              active={showDiff}
+              title={showDiff ? t("history.diffHide") : t("history.diff")}
+            >
+              <FileDiff width={16} height={16} />
+            </IconButton>
+          )}
           <IconButton
             onClick={onToggleSaved}
             disabled={retrying || editing}
@@ -516,6 +535,50 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             >
               <Check className="w-3.5 h-3.5" />
               <span>{t("history.save")}</span>
+            </Button>
+          </div>
+        </div>
+      ) : showDiff && hasDiff ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm pb-2 text-text/90 select-text cursor-text whitespace-pre-wrap break-words">
+            {diffWords(entry.transcription_text, displayedText).map(
+              (part, i) => {
+                const space = i > 0 ? " " : "";
+                if (part.type === "delete") {
+                  return (
+                    <span key={i}>
+                      {space}
+                      <del className="text-red-500 line-through decoration-red-500/70">
+                        {part.text}
+                      </del>
+                    </span>
+                  );
+                }
+                if (part.type === "insert") {
+                  return (
+                    <span key={i}>
+                      {space}
+                      <ins className="text-green-600 no-underline">
+                        {part.text}
+                      </ins>
+                    </span>
+                  );
+                }
+                return <span key={i}>{space + part.text}</span>;
+              },
+            )}
+          </p>
+          <div className="flex justify-end">
+            <Button
+              onClick={() =>
+                navigator.clipboard.writeText(entry.transcription_text)
+              }
+              variant="secondary"
+              size="sm"
+              className="flex items-center gap-1"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>{t("history.copyRaw")}</span>
             </Button>
           </div>
         </div>

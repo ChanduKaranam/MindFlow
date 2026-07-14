@@ -13,6 +13,14 @@ import { Alert } from "../../ui/Alert";
 const SENSITIVITY = { off: 0, conservative: 0.18, aggressive: 0.35 } as const;
 type SensitivityKey = keyof typeof SENSITIVITY;
 
+/** Flags implied by each intensity preset: [smart, self_correction,
+ * preserve_technical]. Mirrors change_cleanup_intensity_setting in Rust. */
+const INTENSITY_FLAGS: Record<string, [boolean, boolean, boolean]> = {
+  light: [true, false, false],
+  medium: [true, true, true],
+  high: [true, true, true],
+};
+
 /** AI cleanup settings card: master toggle, per-behavior flags, cleanup
  * model selection/download, and name-correction sensitivity. Mirrors the
  * SettingsGroup + ToggleSwitch/SettingContainer idiom used by every other
@@ -63,6 +71,28 @@ export const AiCleanup: React.FC = React.memo(() => {
     })),
   ];
 
+  // The knob is a preset writer over the three flags; when the flags no
+  // longer match the preset the knob last wrote, it reads "custom".
+  const intensity = getSetting("cleanup_intensity") ?? "medium";
+  const impliedFlags = INTENSITY_FLAGS[intensity];
+  const currentFlags = [
+    getSetting("cleanup_smart") ?? true,
+    getSetting("cleanup_self_correction") ?? true,
+    getSetting("cleanup_preserve_technical") ?? true,
+  ];
+  const displayedIntensity =
+    impliedFlags && impliedFlags.every((f, i) => f === currentFlags[i])
+      ? intensity
+      : "custom";
+
+  const intensityOptions: DropdownOption[] = [
+    { value: "off", label: t("aiCleanup.intensityOff") },
+    { value: "light", label: t("aiCleanup.intensityLight") },
+    { value: "medium", label: t("aiCleanup.intensityMedium") },
+    { value: "high", label: t("aiCleanup.intensityHigh") },
+    { value: "custom", label: t("aiCleanup.intensityCustom"), disabled: true },
+  ];
+
   const sensitivityOptions: DropdownOption[] = [
     { value: "off", label: t("aiCleanup.sensitivityOff") },
     { value: "conservative", label: t("aiCleanup.sensitivityConservative") },
@@ -82,6 +112,20 @@ export const AiCleanup: React.FC = React.memo(() => {
       />
       {enabled && (
         <>
+          <SettingContainer
+            title={t("aiCleanup.intensity")}
+            description={t("aiCleanup.intensityDescription")}
+            descriptionMode="tooltip"
+            grouped
+          >
+            <Dropdown
+              options={intensityOptions}
+              selectedValue={displayedIntensity}
+              onSelect={(value) => updateSetting("cleanup_intensity", value)}
+              disabled={isUpdating("cleanup_intensity")}
+              className="min-w-[200px]"
+            />
+          </SettingContainer>
           <ToggleSwitch
             checked={getSetting("cleanup_smart") ?? true}
             onChange={(v) => updateSetting("cleanup_smart", v)}

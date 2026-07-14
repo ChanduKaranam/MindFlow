@@ -88,13 +88,18 @@ fn transcribes_offline_on_cpu() {
     // ── fixture ───────────────────────────────────────────────────────────────
     let samples = decode_wav_to_f32(JFK_WAV);
     assert!(!samples.is_empty(), "decoded audio must not be empty");
-    eprintln!("Decoded {} samples (~{:.1}s at 16 kHz)", samples.len(), samples.len() as f32 / 16000.0);
+    eprintln!(
+        "Decoded {} samples (~{:.1}s at 16 kHz)",
+        samples.len(),
+        samples.len() as f32 / 16000.0
+    );
 
     // ── load model (CPU, no network) ──────────────────────────────────────────
     // Mirrors exactly how managers/transcription.rs loads a Moonshine engine.
     eprintln!("Loading Moonshine-base from: {}", model_dir.display());
-    let mut model = MoonshineModel::load(&model_dir, MoonshineVariant::Base, &Quantization::default())
-        .expect("MoonshineModel::load");
+    let mut model =
+        MoonshineModel::load(&model_dir, MoonshineVariant::Base, &Quantization::default())
+            .expect("MoonshineModel::load");
 
     // ── transcribe (CPU, no network) ──────────────────────────────────────────
     eprintln!("Running transcription (CPU-only, no network)…");

@@ -112,6 +112,31 @@ const SEARCH_INDEX: IndexEntry[] = [
       "sensitivity",
     ],
   },
+  {
+    id: "transforms",
+    section: "general",
+    keywords: [
+      "transforms",
+      "transform",
+      "polish",
+      "shorten",
+      "rewrite",
+      "command mode",
+      "prompt",
+    ],
+  },
+  {
+    id: "context",
+    section: "general",
+    keywords: [
+      "context",
+      "window title",
+      "selection",
+      "clipboard",
+      "privacy",
+      "awareness",
+    ],
+  },
 ];
 
 export const SettingsSearch: React.FC<Props> = ({ onJump }) => {

@@ -16,6 +16,8 @@ import { MicSensitivitySlider } from "../MicSensitivitySlider";
 import { NoiseSuppression } from "../NoiseSuppression";
 import { ModelSettingsCard } from "./ModelSettingsCard";
 import { AiCleanup } from "../ai-cleanup/AiCleanup";
+import { Transforms } from "../transforms/Transforms";
+import { ContextSettings } from "../context/ContextSettings";
 
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -34,6 +36,8 @@ export const GeneralSettings: React.FC = () => {
         <SpokenCommands descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
       <AiCleanup />
+      <Transforms />
+      <ContextSettings />
       <ModelSettingsCard />
       <SettingsGroup title={t("settings.sound.title")}>
         <MicrophoneSelector descriptionMode="tooltip" grouped={true} />

@@ -2,6 +2,47 @@
 
 All notable changes to MindFlow are documented here.
 
+## Unreleased — M9 "Feels alive"
+
+### Zero system toll
+- **The app no longer slows the machine at startup** — the cleanup LLM used to
+  page 1–2.4 GB from disk the moment the app launched; it now loads while you
+  speak your first dictation (starting ~1 s after the STT model so they don't
+  fight for the disk). Idle app = no model RAM, no measurable CPU.
+- Background polish runs on half the CPU cores (Command Mode keeps full
+  speed); the hardware scan is cached instead of re-run per dictation.
+
+### Live dictation feel
+- **"Scratch that"** (also "delete that" / "undo that" / "never mind") spoken
+  on its own deletes the previous dictation — verified select-back, one Delete
+  keypress, never fires blind.
+- **Cleanup intensity knob** — Off / Light / Medium / High presets over the
+  advanced flags (High adds a clarity rewrite); shows "Custom" when the flags
+  are hand-tuned.
+
+### Trust
+- **History diff view** — see exactly what the AI changed (word-level
+  highlights) and copy the raw transcription with one click.
+- **Usage insights** — dictations, total words, words per dictation, computed
+  locally from History.
+
+### Power
+- **Transforms** — named rewrite prompts (Polish, Shorten, Bullet points, Fix
+  grammar + your own): speak a transform's name in Command Mode to apply it to
+  the selection.
+- **Privacy-safe context** (all default OFF) — optionally let the cleanup LLM
+  see the window title, selected text, and/or clipboard to resolve names and
+  terms. Local-only by construction, per-source toggles, a badge shows what
+  the last dictation used; selection capture is skipped in terminals. No
+  screenshots, ever.
+- **Quiet mode** — boosts mic normalization and lowers the voice threshold for
+  whispered dictation.
+
+### Deferred
+- Streaming partial text (Moonshine/Parakeet) and mouse-button triggers moved
+  to M10; auto-learn-from-typed-corrections cut after design review (unsafe
+  via key simulation — needs OS accessibility read APIs).
+
 ## Unreleased — M8 Wispr-parity interaction layer
 
 ### Feel

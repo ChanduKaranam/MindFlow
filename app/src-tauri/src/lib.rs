@@ -8,6 +8,7 @@ pub mod cli;
 mod clipboard;
 mod commands;
 mod context;
+mod context_capture;
 mod format;
 mod helpers;
 mod inject;
@@ -181,6 +182,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(cleanup_manager.clone());
     app_handle.manage(actions::CommandSelection(std::sync::Mutex::new(None)));
     app_handle.manage(actions::LastPaste(std::sync::Mutex::new(None)));
+    app_handle.manage(context_capture::DictationContext(std::sync::Mutex::new(
+        None,
+    )));
 
     // M9 rule 0: NO model bytes are touched at app startup — the cleanup LLM
     // preloads at recording start instead (actions.rs), overlapping the user
@@ -463,6 +467,13 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_cleanup_self_correction_setting,
             shortcut::change_cleanup_preserve_technical_setting,
             shortcut::change_cleanup_model_setting,
+            shortcut::change_cleanup_intensity_setting,
+            shortcut::change_transforms_setting,
+            shortcut::run_transform,
+            shortcut::change_context_window_title_setting,
+            shortcut::change_context_selection_setting,
+            shortcut::change_context_clipboard_setting,
+            shortcut::change_quiet_mode_setting,
             shortcut::change_instant_paste_setting,
             shortcut::change_app_tone_setting,
             open_scratchpad,

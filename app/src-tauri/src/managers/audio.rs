@@ -309,7 +309,15 @@ impl AudioRecordingManager {
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
             let settings = get_settings(&self.app_handle);
-            let vad_threshold = settings.vad_threshold;
+            // M9 quiet mode: whisper-quiet speech scores low on the VAD, so
+            // cap the effective threshold at the 0.25 preset (a user-set value
+            // below that is respected). Applied at recorder construction —
+            // change_quiet_mode_setting rebuilds the recorder.
+            let vad_threshold = if settings.quiet_mode {
+                settings.vad_threshold.min(0.25)
+            } else {
+                settings.vad_threshold
+            };
             let noise_suppression = settings.noise_suppression;
             *recorder_opt = Some(create_audio_recorder(
                 vad_path.to_str().unwrap(),
@@ -575,7 +583,14 @@ impl AudioRecordingManager {
                 // Use the value stored at recorder-creation time (not a fresh
                 // settings read) to stay consistent with whether a denoiser was
                 // actually attached to this recorder instance.
-                let samples = if *self.recorder_noise_suppression.lock().unwrap() {
+                // M9 quiet mode: boost the input gain 2x by raising the
+                // normalize target +6 dB (gain is a ratio of target RMS to
+                // clip RMS, so +6 dB target = 2x gain), and run the boost-only
+                // normalizer even without the denoiser. The stage's existing
+                // 10x max_gain clamp bounds the boost; output stays in [-1, 1].
+                let samples = if settings.quiet_mode {
+                    normalize_clip(&samples, -14.0, 10.0)
+                } else if *self.recorder_noise_suppression.lock().unwrap() {
                     normalize_clip(&samples, -20.0, 10.0)
                 } else {
                     samples

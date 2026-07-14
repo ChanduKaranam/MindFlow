@@ -1320,6 +1320,47 @@ pub fn change_cleanup_preserve_technical_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_context_window_title_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.context_window_title = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_context_selection_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.context_selection = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_context_clipboard_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.context_clipboard = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// M9 quiet mode: the VAD threshold preset applies at recorder construction,
+/// so rebuild it (same recipe as change_vad_threshold_setting).
+#[tauri::command]
+#[specta::specta]
+pub fn change_quiet_mode_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.quiet_mode = enabled;
+    settings::write_settings(&app, settings);
+    let rm = app.state::<std::sync::Arc<crate::managers::audio::AudioRecordingManager>>();
+    rm.rebuild_recorder()
+        .map_err(|e| format!("Failed to rebuild recorder: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_instant_paste_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.instant_paste = enabled;
@@ -1332,6 +1373,107 @@ pub fn change_instant_paste_setting(app: AppHandle, enabled: bool) -> Result<(),
 pub fn change_app_tone_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.app_tone_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_transforms_setting(
+    app: AppHandle,
+    transforms: Vec<settings::Transform>,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.transforms = transforms;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// M9 Transforms: run a named transform on the current selection. Mirrors the
+/// Command Mode tail (actions::run_command_mode) minus the dictation.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_transform(app: AppHandle, transform_id: String) -> Result<(), String> {
+    let settings = settings::get_settings(&app);
+    let Some(transform) = settings
+        .transforms
+        .iter()
+        .find(|t| t.id == transform_id)
+        .cloned()
+    else {
+        return Err(format!("unknown transform: {transform_id}"));
+    };
+
+    // Selection capture simulates Ctrl+C via enigo — main thread only.
+    let (tx, rx) = std::sync::mpsc::channel();
+    let ah = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(crate::clipboard::capture_selection(&ah));
+    })
+    .map_err(|e| format!("main thread dispatch failed: {e}"))?;
+    let selection = rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("selection capture failed: {e}"))?;
+
+    let Some(selection) = selection else {
+        let _ = app.emit("command-mode-failed", ());
+        return Ok(());
+    };
+
+    tauri::async_runtime::spawn(async move {
+        let cm = app.state::<std::sync::Arc<crate::cleanup::CleanupManager>>();
+        let _ = app.emit("cleanup-state-changed", "polishing");
+        let result = cm
+            .run_command(&transform.prompt, Some(selection), &settings)
+            .await;
+        let _ = app.emit("cleanup-state-changed", "idle");
+        match result {
+            Some(text) => {
+                let ah = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    // The selection is still selected in the target app, so a
+                    // plain paste replaces it natively.
+                    match crate::utils::paste(text.clone(), ah.clone()) {
+                        Ok(()) => crate::actions::remember_paste(&ah, &text),
+                        Err(e) => {
+                            error!("Transform paste failed: {e}");
+                            let _ = ah.emit("paste-error", ());
+                        }
+                    }
+                });
+            }
+            None => {
+                warn!("Transform produced no result (model missing or generation failed)");
+                let _ = app.emit("command-mode-failed", ());
+            }
+        }
+    });
+    Ok(())
+}
+
+/// M9: preset writer over the three cleanup flags. "custom" (or any unknown
+/// value) records the knob position without touching the flags.
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_intensity_setting(app: AppHandle, value: String) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cleanup_intensity = value.clone();
+    match value.as_str() {
+        "off" => settings.ai_cleanup_enabled = false,
+        "light" => {
+            settings.ai_cleanup_enabled = true;
+            settings.cleanup_smart = true;
+            settings.cleanup_self_correction = false;
+            settings.cleanup_preserve_technical = false;
+        }
+        "medium" | "high" => {
+            settings.ai_cleanup_enabled = true;
+            settings.cleanup_smart = true;
+            settings.cleanup_self_correction = true;
+            settings.cleanup_preserve_technical = true;
+        }
+        _ => {} // custom: flags untouched
+    }
     settings::write_settings(&app, settings);
     Ok(())
 }

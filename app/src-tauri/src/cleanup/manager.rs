@@ -191,7 +191,12 @@ impl CleanupManager {
 
     /// Run the LLM cleanup pass. `None` means "use the rules-only text" — the
     /// caller must treat every failure as a silent fallback, never an error.
-    pub async fn cleanup(&self, text: &str, settings: &AppSettings) -> Option<String> {
+    pub async fn cleanup(
+        &self,
+        text: &str,
+        settings: &AppSettings,
+        context: Option<&crate::context_capture::CapturedContext>,
+    ) -> Option<String> {
         if !should_attempt_cleanup(text, settings) {
             return None;
         }
@@ -220,7 +225,16 @@ impl CleanupManager {
         } else {
             ""
         };
-        let system = build_system_prompt(&flags, &settings.custom_words, tone);
+        let mut system = build_system_prompt(
+            &flags,
+            &settings.custom_words,
+            tone,
+            settings.cleanup_intensity == "high",
+        );
+        // M9 privacy-safe context: tagged data, never transcribed.
+        if let Some(ctx) = context.filter(|c| !c.is_empty()) {
+            system.push_str(&crate::context_capture::context_prompt_section(ctx));
+        }
 
         // Small models drop content on long inputs: clean sentence-packed
         // chunks independently, preserving dictated paragraph breaks, so a

@@ -511,6 +511,18 @@ async changeCleanupModelSetting(modelId: string | null) : Promise<Result<null, s
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * M9: preset writer over the three cleanup flags. "custom" (or any unknown
+ * value) records the knob position without touching the flags.
+ */
+async changeCleanupIntensitySetting(value: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_intensity_setting", { value }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeInstantPasteSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_instant_paste_setting", { enabled }) };
@@ -522,6 +534,62 @@ async changeInstantPasteSetting(enabled: boolean) : Promise<Result<null, string>
 async changeAppToneSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_app_tone_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * M9: named Command Mode transforms (presets + user-defined) — replaces the
+ * whole list.
+ */
+async changeTransformsSetting(transforms: Transform[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_transforms_setting", { transforms }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * M9: run a named transform on the current selection (Command Mode tail
+ * without the dictation).
+ */
+async runTransform(transformId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_transform", { transformId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeContextWindowTitleSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_context_window_title_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeContextSelectionSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_context_selection_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeContextClipboardSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_context_clipboard_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeQuietModeSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_quiet_mode_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1004,7 +1072,25 @@ instant_paste?: boolean;
 /**
  * M8: adapt cleanup tone to the focused app's category (email/chat/code…).
  */
-app_tone_enabled?: boolean }
+app_tone_enabled?: boolean; 
+/**
+ * M9: cleanup intensity preset — "off" / "light" / "medium" / "high" /
+ * "custom". Plain String (not an enum) for bindings simplicity.
+ */
+cleanup_intensity?: string; 
+/**
+ * M9: named Command Mode transforms (presets + user-defined).
+ */
+transforms?: Transform[]; 
+/**
+ * M9 privacy-safe context: independent, default-OFF sources injected into
+ * the cleanup prompt (never transcribed, never leaves the machine).
+ */
+context_window_title?: boolean; context_selection?: boolean; context_clipboard?: boolean; 
+/**
+ * M9 whisper-quiet preset: lower VAD threshold + input gain boost.
+ */
+quiet_mode?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { whisper: string[]; ort: string[]; gpu_devices: GpuDeviceOption[] }
@@ -1047,6 +1133,7 @@ export type Replacement = { from: string; to: string }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
+export type Transform = { id: string; name: string; prompt: string }
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type WhisperAcceleratorSetting = "auto" | "cpu" | "gpu"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
