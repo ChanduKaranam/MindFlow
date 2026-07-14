@@ -17,6 +17,14 @@ This guide covers how to set up the development environment and build Handy from
 - Xcode Command Line Tools
 - Install with: `xcode-select --install`
 
+On a fresh checkout, build the llama/ggml dylibs once before `tauri dev` or
+`tauri build` (the bundle config references them in `target/release`, and
+tauri-build copies them before they'd otherwise be compiled):
+
+```bash
+cd src-tauri && cargo build --release -p llama-cpp-2 && cd ..
+```
+
 ##### Intel Mac (x86_64)
 
 Prebuilt ONNX Runtime binaries are not available for Intel Macs. Install ONNX Runtime via Homebrew and link dynamically:

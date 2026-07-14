@@ -153,9 +153,12 @@ export const ModelsSettings: React.FC = () => {
     }
   };
 
-  // Filter models based on language filter
+  // Filter models based on language filter. This list is STT model
+  // selection/download UI — cleanup LLMs (TextLlm) get their own card
+  // elsewhere and must never appear here.
   const filteredModels = useMemo(() => {
     return models.filter((model: ModelInfo) => {
+      if (model.engine_type === "TextLlm") return false;
       if (languageFilter !== "all") {
         if (!modelSupportsLanguage(model, languageFilter)) return false;
       }

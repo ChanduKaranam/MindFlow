@@ -17,7 +17,7 @@ use log::{debug, error, warn};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 
@@ -47,6 +47,171 @@ pub trait ShortcutAction: Send + Sync {
 // Transcribe Action
 struct TranscribeAction {
     post_process: bool,
+    /// M8 Command Mode: the dictation is an instruction applied to the
+    /// selection captured when the shortcut was pressed.
+    command_mode: bool,
+}
+
+/// M8 Command Mode: the selection captured at shortcut press, consumed when
+/// the instruction transcription completes.
+pub struct CommandSelection(pub std::sync::Mutex<Option<String>>);
+
+/// M9 "scratch that": what MindFlow last put on screen (raw text form, without
+/// the optional trailing space) and when. Written ONLY inside the main-thread
+/// closures that paste/replace, so it always reflects what is really on screen
+/// even while a polish replacement is in flight.
+pub struct LastPaste(pub std::sync::Mutex<Option<(String, Instant)>>);
+
+/// Scratch-that must not outlive the user's short-term memory of what they
+/// just dictated — after this it silently does nothing.
+const SCRATCH_MAX_AGE: Duration = Duration::from_secs(120);
+
+/// Record what we just pasted so a following "scratch that" can remove it.
+/// Skipped when auto_submit is on (Enter already fired — deletion meaningless).
+pub(crate) fn remember_paste(app: &AppHandle, text: &str) {
+    let settings = get_settings(app);
+    if settings.auto_submit {
+        return;
+    }
+    if let Some(state) = app.try_state::<LastPaste>() {
+        if let Ok(mut guard) = state.0.lock() {
+            *guard = Some((text.to_string(), Instant::now()));
+        }
+    }
+}
+
+/// True when the utterance IS the scratch command (standalone), normalized
+/// against STT punctuation/casing. Mid-sentence "…scratch that…" stays a
+/// cleanup cue for the LLM and does not trigger deletion.
+pub(crate) fn is_scratch_cue(transcription: &str) -> bool {
+    let norm: String = transcription
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect();
+    let norm = norm.split_whitespace().collect::<Vec<_>>().join(" ");
+    matches!(
+        norm.as_str(),
+        "scratch that" | "delete that" | "undo that" | "never mind" | "nevermind"
+    )
+}
+
+/// M9 scratch-that tail: delete the previous dictation's text (verified
+/// select-back + Delete). Never pastes anything.
+fn run_scratch_that(app: &AppHandle) {
+    let last = app.try_state::<LastPaste>().and_then(|s| {
+        s.0.lock().ok().and_then(|mut g| match g.take() {
+            Some((text, at)) if at.elapsed() <= SCRATCH_MAX_AGE => Some(text),
+            _ => None,
+        })
+    });
+    let Some(text) = last else {
+        debug!("Scratch that: nothing recent to delete");
+        let _ = app.emit("scratch-that-result", "nothing");
+        utils::hide_recording_overlay(app);
+        change_tray_icon(app, TrayIconState::Idle);
+        return;
+    };
+    let ah = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        match crate::clipboard::delete_last_paste(&text, ah.clone()) {
+            Ok(true) => {
+                debug!("Scratch that: previous dictation deleted");
+                let _ = ah.emit("scratch-that-result", "deleted");
+            }
+            Ok(false) => {
+                // Verification failed or unsupported (e.g. Wayland) — never
+                // swallow the utterance silently.
+                let _ = ah.emit("scratch-that-result", "unsupported");
+            }
+            Err(e) => {
+                warn!("Scratch that failed: {e}");
+                let _ = ah.emit("scratch-that-result", "failed");
+            }
+        }
+        utils::hide_recording_overlay(&ah);
+        change_tray_icon(&ah, TrayIconState::Idle);
+    });
+}
+
+/// M9 Transforms: a spoken Command Mode instruction that (lowercased,
+/// punctuation-trimmed) exactly equals a transform's name runs that
+/// transform's prompt instead.
+pub(crate) fn match_transform<'a>(
+    instruction: &str,
+    transforms: &'a [crate::settings::Transform],
+) -> Option<&'a crate::settings::Transform> {
+    let norm = instruction
+        .trim()
+        .trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase();
+    transforms.iter().find(|t| t.name.to_lowercase() == norm)
+}
+
+/// M8 Command Mode tail: transcription = spoken instruction. Applies it to the
+/// captured selection via the LLM; on any failure pastes NOTHING (there is no
+/// raw text worth typing) and notifies the frontend.
+async fn run_command_mode(
+    app: &AppHandle,
+    hm: &Arc<HistoryManager>,
+    instruction: &str,
+    wav_saved: bool,
+    file_name: String,
+) {
+    show_processing_overlay(app);
+    let selection = app
+        .try_state::<CommandSelection>()
+        .and_then(|s| s.0.lock().ok().and_then(|mut g| g.take()));
+    let settings = get_settings(app);
+    // M9 Transforms: a spoken transform name ("polish") runs its prompt.
+    // History still records what was actually spoken.
+    let effective_instruction = match match_transform(instruction, &settings.transforms) {
+        Some(t) => t.prompt.as_str(),
+        None => instruction,
+    };
+    let result = {
+        let cm = app.state::<Arc<crate::cleanup::CleanupManager>>();
+        let _ = app.emit("cleanup-state-changed", "polishing");
+        let r = cm
+            .run_command(effective_instruction, selection.clone(), &settings)
+            .await;
+        let _ = app.emit("cleanup-state-changed", "idle");
+        r
+    };
+
+    if wav_saved {
+        if let Err(err) = hm.save_entry(
+            file_name,
+            instruction.to_string(),
+            false,
+            result.clone(),
+            None,
+        ) {
+            error!("Failed to save command-mode history entry: {}", err);
+        }
+    }
+
+    match result {
+        Some(text) => {
+            let ah_clone = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                // The selection is still selected in the target app, so a
+                // plain paste replaces it natively.
+                if let Err(e) = utils::paste(text, ah_clone.clone()) {
+                    error!("Command mode paste failed: {}", e);
+                    let _ = ah_clone.emit("paste-error", ());
+                }
+                utils::hide_recording_overlay(&ah_clone);
+                change_tray_icon(&ah_clone, TrayIconState::Idle);
+            });
+        }
+        None => {
+            warn!("Command mode produced no result (model missing or generation failed)");
+            let _ = app.emit("command-mode-failed", ());
+            utils::hide_recording_overlay(app);
+            change_tray_icon(app, TrayIconState::Idle);
+        }
+    }
 }
 
 /// Field name for structured output JSON schema
@@ -360,6 +525,68 @@ pub(crate) struct ProcessedTranscription {
     pub post_process_prompt: Option<String>,
 }
 
+/// Deterministic (non-LLM, non-network) text pipeline stages, in order.
+/// Pure so it can be unit-tested without an AppHandle.
+pub(crate) fn apply_rule_stages(text: &str, settings: &AppSettings) -> String {
+    let mut t = text.to_string();
+    if !settings.custom_words.is_empty() && settings.word_correction_threshold > 0.0 {
+        t = crate::audio_toolkit::apply_custom_words(
+            &t,
+            &settings.custom_words,
+            settings.word_correction_threshold,
+        );
+    }
+    t = crate::audio_toolkit::text::glue_spoken_emails(&t);
+    t = crate::audio_toolkit::filter_transcription_output(
+        &t,
+        &settings.app_language,
+        &settings.custom_filler_words,
+    );
+    let spoken_cfg = crate::format::SpokenCommandsConfig {
+        enabled: settings.spoken_commands_enabled,
+        number_conversion: settings.number_conversion_enabled,
+    };
+    crate::format::apply_spoken_commands(&t, &spoken_cfg)
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use super::*;
+    use crate::settings::get_default_settings;
+
+    #[test]
+    fn rule_stages_correct_names_for_any_engine() {
+        let mut settings = get_default_settings();
+        // Pin the language: get_default_settings() reads the OS locale, and the
+        // filler-word list falls back to a conservative set (no "um") for
+        // anything but recognized language codes — deterministic regardless of
+        // the host/CI locale (e.g. LANG=C.UTF-8).
+        settings.app_language = "en".to_string();
+        settings.custom_words = vec!["Purna".to_string(), "Tilicho".to_string()];
+        // "new line" only fires as a spoken command when it is its own sentence
+        // (see format::spoken_commands::apply_newlines) — hence the periods.
+        let out = apply_rule_stages("um so poorna joined tilecho. new line. great", &settings);
+        assert!(out.contains("Purna"), "got: {out}");
+        assert!(out.contains("Tilicho"), "got: {out}");
+        assert!(!out.contains("um"), "fillers must be stripped: {out}");
+        assert!(out.contains('\n'), "spoken commands must still run: {out}");
+    }
+}
+
+/// M8 instant paste: everything deterministic (no LLM, no network) so the raw
+/// text can hit the cursor immediately; the LLM polish replaces it in place
+/// later. Mirrors the deterministic stages of `process_transcription_output`.
+pub(crate) async fn quick_transcription_output(app: &AppHandle, transcription: &str) -> String {
+    let settings = get_settings(app);
+    let mut text = transcription.to_string();
+    if let Some(converted) = maybe_convert_chinese_variant(&settings, transcription).await {
+        text = converted;
+    }
+    text = apply_rule_stages(&text, &settings);
+    text = crate::replace::apply_replacements(&text, &settings.replacements);
+    crate::replace::apply_replacements(&text, &settings.snippets)
+}
+
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
@@ -374,13 +601,31 @@ pub(crate) async fn process_transcription_output(
         final_text = converted_text;
     }
 
-    // M3: deterministic, CPU-only spoken formatting commands (newlines, punctuation,
-    // capitalization, opt-in numbers). Gated by its own settings; no network, no LLM.
-    let spoken_cfg = crate::format::SpokenCommandsConfig {
-        enabled: settings.spoken_commands_enabled,
-        number_conversion: settings.number_conversion_enabled,
-    };
-    final_text = crate::format::apply_spoken_commands(&final_text, &spoken_cfg);
+    // M7: deterministic pipeline — dictionary correction (all engines), filler
+    // filtering, spoken commands. Runs on the raw STT text; history keeps the raw
+    // text so corrections are visible as a diff.
+    final_text = apply_rule_stages(&final_text, &settings);
+
+    // M7: local LLM cleanup (in-process, zero network). Any failure falls back
+    // to the rules-only text — dictation never blocks on the LLM.
+    // M9: the context captured at recording start rides along (prompt-only;
+    // the deterministic quick_transcription_output path is unaffected).
+    let context = app
+        .try_state::<crate::context_capture::DictationContext>()
+        .and_then(|s| s.0.lock().ok().and_then(|mut g| g.take()));
+    let cleanup_manager = app.state::<Arc<crate::cleanup::CleanupManager>>();
+    let _ = app.emit("cleanup-state-changed", "polishing");
+    if let Some(cleaned) = cleanup_manager
+        .cleanup(&final_text, &settings, context.as_ref())
+        .await
+    {
+        final_text = cleaned;
+    }
+    let _ = app.emit("cleanup-state-changed", "idle");
+    // M9 audit: record which sources were injected (never the content).
+    if let Some(ctx) = context.filter(|c| !c.is_empty()) {
+        let _ = app.emit("context-used", ctx.sources());
+    }
 
     // Passes cascade: a rule's output is re-scanned by later rules, and snippets run on the
     // replacements' output. Idempotent when a `to` does not re-introduce a matched `from`.
@@ -420,6 +665,54 @@ impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+
+        // M9 rule 0: warm the cleanup LLM while the user speaks — delayed 1 s
+        // so the STT model load wins the first disk seconds. App startup never
+        // touches model bytes; this is the earliest moment with real intent.
+        {
+            let ah = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let settings = crate::settings::get_settings(&ah);
+                if let Some(cm) = ah.try_state::<Arc<crate::cleanup::CleanupManager>>() {
+                    cm.preload(&settings);
+                }
+            });
+        }
+
+        // M8 Command Mode: grab the selection now, before any recording UI can
+        // disturb focus and while the user hasn't started talking yet.
+        if self.command_mode {
+            let ah = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let sel = crate::clipboard::capture_selection(&ah);
+                if let Some(state) = ah.try_state::<CommandSelection>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        *guard = sel;
+                    }
+                }
+            });
+        }
+
+        // M9 privacy-safe context: capture the enabled sources now, on the
+        // main thread (selection capture simulates Ctrl+C), before recording
+        // UI can disturb focus. Command Mode has its own selection capture.
+        if !self.command_mode {
+            let s = get_settings(app);
+            if s.context_window_title || s.context_selection || s.context_clipboard {
+                let ah = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    let settings = get_settings(&ah);
+                    let ctx = crate::context_capture::capture(&ah, &settings);
+                    if let Some(state) = ah.try_state::<crate::context_capture::DictationContext>()
+                    {
+                        if let Ok(mut guard) = state.0.lock() {
+                            *guard = Some(ctx);
+                        }
+                    }
+                });
+            }
+        }
 
         // Load model in the background
         let tm = app.state::<Arc<TranscriptionManager>>();
@@ -542,6 +835,7 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
+        let command_mode = self.command_mode;
 
         tauri::async_runtime::spawn(async move {
             let _guard = FinishGuard(ah.clone());
@@ -609,9 +903,59 @@ impl ShortcutAction for TranscribeAction {
                                 transcription
                             );
 
+                            // M8 Command Mode: the transcription is an
+                            // instruction applied to the captured selection.
+                            if command_mode {
+                                run_command_mode(&ah, &hm, &transcription, wav_saved, file_name)
+                                    .await;
+                                return;
+                            }
+
                             if post_process {
                                 show_processing_overlay(&ah);
                             }
+
+                            // M9 "scratch that": a standalone spoken command
+                            // deletes the previous dictation instead of pasting.
+                            if is_scratch_cue(&transcription) {
+                                run_scratch_that(&ah);
+                                return;
+                            }
+
+                            // M8 instant paste: deliver the deterministic text
+                            // immediately, polish in place when the LLM lands.
+                            let settings_snapshot = crate::settings::get_settings(&ah);
+                            let instant_mode = settings_snapshot.instant_paste
+                                && settings_snapshot.ai_cleanup_enabled
+                                && !post_process;
+                            let mut instant_text: Option<String> = None;
+                            if instant_mode {
+                                let quick = quick_transcription_output(&ah, &transcription).await;
+                                if !quick.is_empty() {
+                                    let ah_clone = ah.clone();
+                                    let q = quick.clone();
+                                    let paste_time = Instant::now();
+                                    let _ = ah.run_on_main_thread(move || {
+                                        match utils::paste(q.clone(), ah_clone.clone()) {
+                                            Ok(()) => {
+                                                debug!(
+                                                    "Instant text pasted in {:?}",
+                                                    paste_time.elapsed()
+                                                );
+                                                remember_paste(&ah_clone, &q);
+                                            }
+                                            Err(e) => {
+                                                error!("Failed instant paste: {}", e);
+                                                let _ = ah_clone.emit("paste-error", ());
+                                            }
+                                        }
+                                        utils::hide_recording_overlay(&ah_clone);
+                                        change_tray_icon(&ah_clone, TrayIconState::Idle);
+                                    });
+                                    instant_text = Some(quick);
+                                }
+                            }
+
                             let processed =
                                 process_transcription_output(&ah, &transcription, post_process)
                                     .await;
@@ -629,7 +973,33 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
 
-                            if processed.final_text.is_empty() {
+                            if let Some(prev) = instant_text {
+                                // Already pasted; swap in the polished text only
+                                // when it differs and verification succeeds.
+                                if !processed.final_text.is_empty() && processed.final_text != prev
+                                {
+                                    let ah_clone = ah.clone();
+                                    let final_text = processed.final_text;
+                                    let _ = ah.run_on_main_thread(move || {
+                                        match crate::clipboard::replace_last_paste(
+                                            &prev,
+                                            final_text.clone(),
+                                            ah_clone.clone(),
+                                        ) {
+                                            Ok(true) => {
+                                                debug!("Polished text replaced in place");
+                                                remember_paste(&ah_clone, &final_text);
+                                            }
+                                            Ok(false) => {
+                                                debug!("Polish skipped (guard), raw text kept")
+                                            }
+                                            Err(e) => {
+                                                warn!("Replace-in-place failed, raw kept: {e}")
+                                            }
+                                        }
+                                    });
+                                }
+                            } else if processed.final_text.is_empty() {
                                 utils::hide_recording_overlay(&ah);
                                 change_tray_icon(&ah, TrayIconState::Idle);
                             } else {
@@ -637,11 +1007,14 @@ impl ShortcutAction for TranscribeAction {
                                 let paste_time = Instant::now();
                                 let final_text = processed.final_text;
                                 ah.run_on_main_thread(move || {
-                                    match utils::paste(final_text, ah_clone.clone()) {
-                                        Ok(()) => debug!(
-                                            "Text pasted successfully in {:?}",
-                                            paste_time.elapsed()
-                                        ),
+                                    match utils::paste(final_text.clone(), ah_clone.clone()) {
+                                        Ok(()) => {
+                                            debug!(
+                                                "Text pasted successfully in {:?}",
+                                                paste_time.elapsed()
+                                            );
+                                            remember_paste(&ah_clone, &final_text);
+                                        }
                                         Err(e) => {
                                             error!("Failed to paste transcription: {}", e);
                                             let _ = ah_clone.emit("paste-error", ());
@@ -733,11 +1106,22 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         "transcribe".to_string(),
         Arc::new(TranscribeAction {
             post_process: false,
+            command_mode: false,
         }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction {
+            post_process: true,
+            command_mode: false,
+        }) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        "command_mode".to_string(),
+        Arc::new(TranscribeAction {
+            post_process: false,
+            command_mode: true,
+        }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),
@@ -749,6 +1133,62 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+#[cfg(test)]
+mod transform_tests {
+    use super::match_transform;
+    use crate::settings::Transform;
+
+    #[test]
+    fn spoken_name_matches_case_insensitively_with_punctuation() {
+        let transforms = vec![
+            Transform {
+                id: "polish".into(),
+                name: "Polish".into(),
+                prompt: "P".into(),
+            },
+            Transform {
+                id: "bullets".into(),
+                name: "Bullet points".into(),
+                prompt: "B".into(),
+            },
+        ];
+        assert_eq!(
+            match_transform("Polish.", &transforms).map(|t| t.id.as_str()),
+            Some("polish")
+        );
+        assert_eq!(
+            match_transform("bullet points", &transforms).map(|t| t.id.as_str()),
+            Some("bullets")
+        );
+        // Longer instructions containing a name are NOT a match.
+        assert!(match_transform("polish this paragraph", &transforms).is_none());
+        assert!(match_transform("", &transforms).is_none());
+    }
+}
+
+#[cfg(test)]
+mod scratch_tests {
+    use super::is_scratch_cue;
+
+    #[test]
+    fn standalone_cues_trigger() {
+        assert!(is_scratch_cue("Scratch that."));
+        assert!(is_scratch_cue("scratch that"));
+        assert!(is_scratch_cue("Delete that!"));
+        assert!(is_scratch_cue("Undo that"));
+        assert!(is_scratch_cue("Never mind."));
+        assert!(is_scratch_cue("Nevermind"));
+    }
+
+    #[test]
+    fn embedded_or_other_text_does_not_trigger() {
+        assert!(!is_scratch_cue("ship it friday scratch that monday"));
+        assert!(!is_scratch_cue("please scratch that from the record"));
+        assert!(!is_scratch_cue("hello world"));
+        assert!(!is_scratch_cue(""));
+    }
+}
 
 #[cfg(test)]
 mod tests {

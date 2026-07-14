@@ -66,3 +66,14 @@ Post-processing (cloud LLM rewriting/tone) is **off by default** (`default_post_
 ## Conclusion
 
 With post-processing off (default) and update checks disabled or simply not invoked, MindFlow performs the full dictate-and-inject cycle with **zero outbound network traffic**. The regression guard (`no_network_in_hot_path.rs`) keeps this true as the code evolves.
+
+## M7 addendum — two modules added to `HOT_PATH`
+
+M7 (local LLM cleanup + dictionary auto-learn) added two modules to the guard test's `HOT_PATH` list. Both are network-free:
+
+| Module | Role | Network? |
+|---|---|---|
+| `cleanup/` (`engine.rs`, `manager.rs`, `prompt.rs`, `mod.rs`) | Local LLM cleanup pass (fillers/punctuation/self-corrections) | none — `engine.rs` runs Qwen3 **in-process** via `llama-cpp-2` (CPU-only GGUF inference), same pattern as the existing whisper-rs STT engine. No `reqwest`/socket use; the LLM's one-time model download lives in `managers/model.rs`, already excluded from `HOT_PATH` (see §4). |
+| `learn.rs` | Dictionary auto-learn: word-level diff between a transcript and its History edit, extracting corrected proper nouns | none — pure in-memory string diff (Levenshtein/LCS) and lookups against the bundled `COMMON_WORDS` set. No I/O of any kind. |
+
+Both were verified by the same regression test that covers the rest of `HOT_PATH` (`app/src-tauri/tests/no_network_in_hot_path.rs::dictation_hot_path_has_no_network_symbols`), which now scans `cleanup/` and `learn.rs` alongside the M6 modules.

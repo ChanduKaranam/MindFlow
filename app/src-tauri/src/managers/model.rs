@@ -34,6 +34,9 @@ pub enum EngineType {
     GigaAM,
     Canary,
     Cohere,
+    /// Local text-cleanup LLM (GGUF via llama.cpp). Not an STT engine —
+    /// excluded from every STT selection/auto-select/download flow.
+    TextLlm,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -57,7 +60,17 @@ pub struct ModelInfo {
     pub supported_languages: Vec<String>, // Languages this model can transcribe
     pub supports_language_selection: bool, // Whether the user can explicitly pick a language
     pub is_custom: bool,            // Whether this is a user-provided custom model
-    pub tier: Option<ModelTier>,    // Curated tier (Turbo/Balanced/Max); None for uncategorised models
+    pub tier: Option<ModelTier>, // Curated tier (Turbo/Balanced/Max); None for uncategorised models
+}
+
+/// True if `models` contains a downloaded speech-to-text model. `TextLlm`
+/// entries are cleanup models, not STT engines, and must never count here —
+/// a TextLlm-only install has no dictation engine and must still go through
+/// full onboarding / be treated as "no models".
+pub fn has_downloaded_stt_model(models: &[ModelInfo]) -> bool {
+    models
+        .iter()
+        .any(|m| m.is_downloaded && !matches!(m.engine_type, EngineType::TextLlm))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -110,13 +123,12 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
     // Including zh-Hans and zh-Hant variants to match frontend language codes
     let whisper_languages: Vec<String> = vec![
         "en", "zh", "zh-Hans", "zh-Hant", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl",
-        "ca", "nl", "ar", "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs",
-        "ro", "da", "hu", "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy",
-        "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is",
-        "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo",
-        "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht",
-        "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln",
-        "ha", "ba", "jw", "su", "yue",
+        "ca", "nl", "ar", "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro",
+        "da", "hu", "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te",
+        "fa", "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn",
+        "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc", "ka",
+        "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn", "mt", "sa",
+        "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su", "yue",
     ]
     .into_iter()
     .map(String::from)
@@ -241,8 +253,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
         ModelInfo {
             id: "breeze-asr".to_string(),
             name: "Breeze ASR".to_string(),
-            description: "Optimized for Taiwanese Mandarin. Code-switching support."
-                .to_string(),
+            description: "Optimized for Taiwanese Mandarin. Code-switching support.".to_string(),
             filename: "breeze-asr-q5_k.bin".to_string(),
             url: Some("https://blob.handy.computer/breeze-asr-q5_k.bin".to_string()),
             sha256: Some(
@@ -297,8 +308,8 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
     // Parakeet V3 supported languages (25 EU languages + Russian/Ukrainian):
     // bg, hr, cs, da, nl, en, et, fi, fr, de, el, hu, it, lv, lt, mt, pl, pt, ro, sk, sl, es, sv, ru, uk
     let parakeet_v3_languages: Vec<String> = vec![
-        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv",
-        "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
+        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt",
+        "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
     ]
     .into_iter()
     .map(String::from)
@@ -367,9 +378,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             name: "Moonshine V2 Tiny".to_string(),
             description: "Ultra-fast, English only".to_string(),
             filename: "moonshine-tiny-streaming-en".to_string(),
-            url: Some(
-                "https://blob.handy.computer/moonshine-tiny-streaming-en.tar.gz".to_string(),
-            ),
+            url: Some("https://blob.handy.computer/moonshine-tiny-streaming-en.tar.gz".to_string()),
             sha256: Some(
                 "465addcfca9e86117415677dfdc98b21edc53537210333a3ecdb58509a80abaf".to_string(),
             ),
@@ -462,8 +471,7 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
         ModelInfo {
             id: "sense-voice-int8".to_string(),
             name: "SenseVoice".to_string(),
-            description: "Very fast. Chinese, English, Japanese, Korean, Cantonese."
-                .to_string(),
+            description: "Very fast. Chinese, English, Japanese, Korean, Cantonese.".to_string(),
             filename: "sense-voice-int8".to_string(),
             url: Some("https://blob.handy.computer/sense-voice-int8.tar.gz".to_string()),
             sha256: Some(
@@ -554,8 +562,8 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
 
     // Canary 1B v2 supported languages (25 EU languages)
     let canary_1b_languages: Vec<String> = vec![
-        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv",
-        "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
+        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt",
+        "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
     ]
     .into_iter()
     .map(String::from)
@@ -623,6 +631,92 @@ fn build_catalog() -> HashMap<String, ModelInfo> {
             supports_language_selection: true,
             is_custom: false,
             tier: None,
+        },
+    );
+
+    // Qwen3 GGUF cleanup LLMs (M7). Not STT engines — excluded from
+    // auto-select, transcription loading, and every STT-facing UI list.
+    available_models.insert(
+        "qwen3-0.6b-q4".to_string(),
+        ModelInfo {
+            id: "qwen3-0.6b-q4".to_string(),
+            name: "Qwen3 0.6B".to_string(),
+            description: "AI cleanup model (fastest). Rewrites transcripts locally: fillers, punctuation, self-corrections, name spellings.".to_string(),
+            filename: "Qwen3-0.6B-Q4_K_M.gguf".to_string(),
+            url: Some("https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf".to_string()),
+            sha256: Some(
+                "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a".to_string(),
+            ),
+            size_mb: 379,
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::TextLlm,
+            accuracy_score: 0.0,
+            speed_score: 0.0,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: vec![],
+            supports_language_selection: false,
+            is_custom: false,
+            tier: Some(ModelTier::Turbo),
+        },
+    );
+
+    available_models.insert(
+        "qwen3-1.7b-q4".to_string(),
+        ModelInfo {
+            id: "qwen3-1.7b-q4".to_string(),
+            name: "Qwen3 1.7B".to_string(),
+            description: "AI cleanup model (balanced). Rewrites transcripts locally: fillers, punctuation, self-corrections, name spellings.".to_string(),
+            filename: "Qwen3-1.7B-Q4_K_M.gguf".to_string(),
+            url: Some("https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf".to_string()),
+            sha256: Some(
+                "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897".to_string(),
+            ),
+            size_mb: 1057,
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::TextLlm,
+            accuracy_score: 0.0,
+            speed_score: 0.0,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: vec![],
+            supports_language_selection: false,
+            is_custom: false,
+            tier: Some(ModelTier::Balanced),
+        },
+    );
+
+    available_models.insert(
+        "qwen3-4b-q4".to_string(),
+        ModelInfo {
+            id: "qwen3-4b-q4".to_string(),
+            name: "Qwen3 4B".to_string(),
+            description: "AI cleanup model (most accurate). Rewrites transcripts locally: fillers, punctuation, self-corrections, name spellings.".to_string(),
+            filename: "Qwen3-4B-Q4_K_M.gguf".to_string(),
+            url: Some("https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf".to_string()),
+            sha256: Some(
+                "f6f851777709861056efcdad3af01da38b31223a3ba26e61a4f8bf3a2195813a".to_string(),
+            ),
+            size_mb: 2382,
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::TextLlm,
+            accuracy_score: 0.0,
+            speed_score: 0.0,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: vec![],
+            supports_language_selection: false,
+            is_custom: false,
+            tier: Some(ModelTier::Max),
         },
     );
 
@@ -825,9 +919,13 @@ impl ModelManager {
 
         // If no model is selected, pick the first downloaded one
         if settings.selected_model.is_empty() {
-            // Find the first available (downloaded) model
+            // Find the first available (downloaded) STT model — cleanup LLMs
+            // are never valid transcription engines and must not be
+            // auto-selected here.
             let models = self.available_models.lock().unwrap();
-            if let Some(available_model) = models.values().find(|model| model.is_downloaded) {
+            if let Some(available_model) = models.values().find(|model| {
+                model.is_downloaded && !matches!(model.engine_type, EngineType::TextLlm)
+            }) {
                 info!(
                     "Auto-selecting model: {} ({})",
                     available_model.id, available_model.name
@@ -1511,7 +1609,10 @@ mod m2_tiers {
     #[test]
     fn curated_models_have_expected_tiers() {
         let c = build_catalog();
-        assert_eq!(c["moonshine-tiny-streaming-en"].tier, Some(ModelTier::Turbo));
+        assert_eq!(
+            c["moonshine-tiny-streaming-en"].tier,
+            Some(ModelTier::Turbo)
+        );
         assert_eq!(c["parakeet-tdt-0.6b-v2"].tier, Some(ModelTier::Balanced));
         assert_eq!(c["parakeet-tdt-0.6b-v3"].tier, Some(ModelTier::Max));
     }
@@ -1523,8 +1624,77 @@ mod m2_default_model {
     #[test]
     fn recommended_model_is_parakeet_v2() {
         let c = build_catalog();
-        let rec: Vec<&str> = c.values().filter(|m| m.is_recommended).map(|m| m.id.as_str()).collect();
+        let rec: Vec<&str> = c
+            .values()
+            .filter(|m| m.is_recommended)
+            .map(|m| m.id.as_str())
+            .collect();
         assert_eq!(rec, vec!["parakeet-tdt-0.6b-v2"]);
+    }
+}
+
+#[cfg(test)]
+mod m7_cleanup_catalog {
+    use super::*;
+
+    #[test]
+    fn qwen_llm_models_registered_with_tiers() {
+        let catalog = build_catalog();
+        for (id, tier) in [
+            ("qwen3-0.6b-q4", ModelTier::Turbo),
+            ("qwen3-1.7b-q4", ModelTier::Balanced),
+            ("qwen3-4b-q4", ModelTier::Max),
+        ] {
+            let m = catalog.get(id).unwrap_or_else(|| panic!("{id} missing"));
+            assert!(matches!(m.engine_type, EngineType::TextLlm));
+            assert_eq!(m.tier, Some(tier));
+            assert!(m.url.is_some() && m.sha256.is_some());
+            assert!(!m.is_directory);
+            assert!(
+                !m.is_recommended,
+                "LLMs must not enter STT recommendation flows"
+            );
+        }
+    }
+
+    #[test]
+    fn textllm_only_download_does_not_count_as_has_models() {
+        let mut catalog = build_catalog();
+        // Only a TextLlm (cleanup) model is downloaded; every STT model is not.
+        for m in catalog.values_mut() {
+            m.is_downloaded = false;
+        }
+        let llm_id = catalog
+            .values()
+            .find(|m| matches!(m.engine_type, EngineType::TextLlm))
+            .expect("catalog must contain a TextLlm entry")
+            .id
+            .clone();
+        catalog.get_mut(&llm_id).unwrap().is_downloaded = true;
+
+        let models: Vec<ModelInfo> = catalog.into_values().collect();
+        assert!(
+            !has_downloaded_stt_model(&models),
+            "a TextLlm-only install must not be treated as having a dictation model"
+        );
+    }
+
+    #[test]
+    fn downloaded_stt_model_counts_as_has_models() {
+        let mut catalog = build_catalog();
+        for m in catalog.values_mut() {
+            m.is_downloaded = false;
+        }
+        let stt_id = catalog
+            .values()
+            .find(|m| !matches!(m.engine_type, EngineType::TextLlm))
+            .expect("catalog must contain an STT entry")
+            .id
+            .clone();
+        catalog.get_mut(&stt_id).unwrap().is_downloaded = true;
+
+        let models: Vec<ModelInfo> = catalog.into_values().collect();
+        assert!(has_downloaded_stt_model(&models));
     }
 }
 

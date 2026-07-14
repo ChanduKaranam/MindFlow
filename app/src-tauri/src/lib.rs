@@ -1,20 +1,24 @@
 mod actions;
-mod inject;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
+mod cleanup;
 pub mod cli;
-pub mod replace;
 mod clipboard;
 mod commands;
+mod context;
+mod context_capture;
 mod format;
 mod helpers;
+mod inject;
 mod input;
+mod learn;
 mod llm_client;
 mod managers;
 mod overlay;
 pub mod portable;
+pub mod replace;
 mod settings;
 mod shortcut;
 mod signal_handle;
@@ -128,10 +132,8 @@ fn should_force_show_permissions_window(app: &AppHandle) -> bool {
     #[cfg(target_os = "windows")]
     {
         let model_manager = app.state::<Arc<ModelManager>>();
-        let has_downloaded_models = model_manager
-            .get_available_models()
-            .iter()
-            .any(|model| model.is_downloaded);
+        let has_downloaded_models =
+            managers::model::has_downloaded_stt_model(&model_manager.get_available_models());
 
         if !has_downloaded_models {
             return false;
@@ -167,6 +169,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     );
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+    let cleanup_manager = Arc::new(cleanup::CleanupManager::new(model_manager.clone()));
 
     // Apply accelerator preferences before any model loads
     managers::transcription::apply_accelerator_settings(app_handle);
@@ -176,6 +179,30 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(cleanup_manager.clone());
+    app_handle.manage(actions::CommandSelection(std::sync::Mutex::new(None)));
+    app_handle.manage(actions::LastPaste(std::sync::Mutex::new(None)));
+    app_handle.manage(context_capture::DictationContext(std::sync::Mutex::new(
+        None,
+    )));
+
+    // M9 rule 0: NO model bytes are touched at app startup — the cleanup LLM
+    // preloads at recording start instead (actions.rs), overlapping the user
+    // speaking. Here we only arm the idle unloader.
+    {
+        let app_handle_c = app_handle.clone();
+        let cleanup_c = cleanup_manager.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            let settings = crate::settings::get_settings(&app_handle_c);
+            if let Some(limit) = settings.model_unload_timeout.to_seconds() {
+                if settings.model_unload_timeout != crate::settings::ModelUnloadTimeout::Immediately
+                {
+                    cleanup_c.unload_if_idle(limit);
+                }
+            }
+        });
+    }
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -325,6 +352,29 @@ fn show_main_window_command(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// M8: small always-on-top scratchpad window; dictations land in its focused
+/// textarea through the normal paste path — no pipeline changes needed.
+#[tauri::command]
+#[specta::specta]
+fn open_scratchpad(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("scratchpad") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "scratchpad",
+        tauri::WebviewUrl::App("src/scratchpad/index.html".into()),
+    )
+    .title("MindFlow Scratchpad")
+    .inner_size(420.0, 320.0)
+    .always_on_top(true)
+    .build()
+    .map_err(|e| format!("failed to open scratchpad: {e}"))?;
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
@@ -337,7 +387,12 @@ fn deliver_text_cmd(app: AppHandle, text: String) -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 fn recommended_tier_cmd() -> Result<String, String> {
-    Ok(crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(&crate::stt_tier::detect_cpu_profile())).to_string())
+    Ok(
+        crate::stt_tier::tier_to_str(crate::stt_tier::recommend_tier(
+            crate::stt_tier::cached_cpu_profile(),
+        ))
+        .to_string(),
+    )
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -407,6 +462,21 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_noise_suppression_setting,
             shortcut::change_vad_threshold_setting,
             shortcut::set_onboarding_completed,
+            shortcut::change_ai_cleanup_enabled_setting,
+            shortcut::change_cleanup_smart_setting,
+            shortcut::change_cleanup_self_correction_setting,
+            shortcut::change_cleanup_preserve_technical_setting,
+            shortcut::change_cleanup_model_setting,
+            shortcut::change_cleanup_intensity_setting,
+            shortcut::change_transforms_setting,
+            shortcut::run_transform,
+            shortcut::change_context_window_title_setting,
+            shortcut::change_context_selection_setting,
+            shortcut::change_context_clipboard_setting,
+            shortcut::change_quiet_mode_setting,
+            shortcut::change_instant_paste_setting,
+            shortcut::change_app_tone_setting,
+            open_scratchpad,
             shortcut::handy_keys::start_handy_keys_recording,
             shortcut::handy_keys::stop_handy_keys_recording,
             trigger_update_check,
@@ -460,6 +530,7 @@ pub fn run(cli_args: CliArgs) {
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
             commands::history::retry_history_entry_transcription,
+            commands::history::update_history_entry_text,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,

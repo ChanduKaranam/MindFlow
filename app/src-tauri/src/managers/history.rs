@@ -327,6 +327,56 @@ impl HistoryManager {
         Ok(entry)
     }
 
+    /// Fetch a single history entry by id.
+    pub fn get_entry(&self, id: i64) -> Result<HistoryEntry> {
+        let conn = self.get_connection()?;
+        let entry = conn
+            .query_row(
+                "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                 FROM transcription_history WHERE id = ?1",
+                params![id],
+                Self::map_history_entry,
+            )?;
+
+        Ok(entry)
+    }
+
+    /// User edited the displayed transcript: store as post-processed text and
+    /// notify the UI. Raw transcription_text stays untouched (it's the diff base).
+    pub fn apply_user_edit(&self, id: i64, edited_text: &str) -> Result<HistoryEntry> {
+        let conn = self.get_connection()?;
+        let updated = conn.execute(
+            "UPDATE transcription_history
+             SET post_processed_text = ?1
+             WHERE id = ?2",
+            params![edited_text, id],
+        )?;
+
+        if updated == 0 {
+            return Err(anyhow!("History entry {} not found", id));
+        }
+
+        let entry = conn
+            .query_row(
+                "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, post_process_requested
+                 FROM transcription_history WHERE id = ?1",
+                params![id],
+                Self::map_history_entry,
+            )?;
+
+        debug!("Applied user edit for history entry {}", id);
+
+        if let Err(e) = (HistoryUpdatePayload::Updated {
+            entry: entry.clone(),
+        })
+        .emit(&self.app_handle)
+        {
+            error!("Failed to emit history-updated event: {}", e);
+        }
+
+        Ok(entry)
+    }
+
     pub fn cleanup_old_entries(&self) -> Result<()> {
         let retention_period = crate::settings::get_recording_retention_period(&self.app_handle);
 

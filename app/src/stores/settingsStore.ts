@@ -8,6 +8,7 @@ import type {
   OrtAcceleratorSetting,
   Replacement,
   RecordingMode,
+  Transform,
 } from "@/bindings";
 import { commands } from "@/bindings";
 
@@ -166,10 +167,34 @@ const settingUpdaters: {
     commands.changeExtraRecordingBufferSetting(value as number),
   noise_suppression: (value) =>
     commands.changeNoiseSuppressionSetting(value as boolean),
-  vad_threshold: (value) =>
-    commands.changeVadThresholdSetting(value as number),
+  vad_threshold: (value) => commands.changeVadThresholdSetting(value as number),
   onboarding_completed: (value) =>
     commands.setOnboardingCompleted(value as boolean),
+  ai_cleanup_enabled: (value) =>
+    commands.changeAiCleanupEnabledSetting(value as boolean),
+  cleanup_smart: (value) =>
+    commands.changeCleanupSmartSetting(value as boolean),
+  cleanup_self_correction: (value) =>
+    commands.changeCleanupSelfCorrectionSetting(value as boolean),
+  cleanup_preserve_technical: (value) =>
+    commands.changeCleanupPreserveTechnicalSetting(value as boolean),
+  cleanup_model_id: (value) =>
+    commands.changeCleanupModelSetting(value as string | null),
+  instant_paste: (value) =>
+    commands.changeInstantPasteSetting(value as boolean),
+  app_tone_enabled: (value) =>
+    commands.changeAppToneSetting(value as boolean),
+  cleanup_intensity: (value) =>
+    commands.changeCleanupIntensitySetting(value as string),
+  transforms: (value) =>
+    commands.changeTransformsSetting(value as Transform[]),
+  context_window_title: (value) =>
+    commands.changeContextWindowTitleSetting(value as boolean),
+  context_selection: (value) =>
+    commands.changeContextSelectionSetting(value as boolean),
+  context_clipboard: (value) =>
+    commands.changeContextClipboardSetting(value as boolean),
+  quiet_mode: (value) => commands.changeQuietModeSetting(value as boolean),
 };
 
 export const useSettingsStore = create<SettingsStore>()(

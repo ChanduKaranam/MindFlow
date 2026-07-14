@@ -18,6 +18,7 @@ import Onboarding, {
   PermissionPrimer,
   TryItNowStep,
   FeatureIntro,
+  CleanupModelStep,
 } from "./components/onboarding";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
@@ -30,6 +31,7 @@ type OnboardingStep =
   | "microphone"
   | "accessibility"
   | "model"
+  | "cleanup"
   | "tryit"
   | "features"
   | "done";
@@ -179,6 +181,33 @@ function App() {
     };
   }, [t]);
 
+  // M9: "scratch that" outcome + Command Mode failure toasts
+  useEffect(() => {
+    const unlistenScratch = listen<string>("scratch-that-result", (event) => {
+      switch (event.payload) {
+        case "deleted":
+          toast.success(t("toasts.scratchDeleted"));
+          break;
+        case "nothing":
+          toast.info(t("toasts.scratchNothing"));
+          break;
+        case "unsupported":
+          toast.info(t("toasts.scratchUnsupported"));
+          break;
+        case "failed":
+          toast.error(t("toasts.scratchFailed"));
+          break;
+      }
+    });
+    const unlistenCommand = listen("command-mode-failed", () => {
+      toast.error(t("toasts.commandFailed"));
+    });
+    return () => {
+      unlistenScratch.then((fn) => fn());
+      unlistenCommand.then((fn) => fn());
+    };
+  }, [t]);
+
   // Listen for model loading failures and show a toast
   useEffect(() => {
     const unlisten = listen<ModelStateEvent>("model-state-changed", (event) => {
@@ -224,7 +253,8 @@ function App() {
       try {
         const settingsResult = await commands.getAppSettings();
         if (settingsResult.status === "ok") {
-          onboardingCompleted = settingsResult.data.onboarding_completed ?? false;
+          onboardingCompleted =
+            settingsResult.data.onboarding_completed ?? false;
         }
       } catch (e) {
         console.warn("Failed to read onboarding_completed flag:", e);
@@ -310,17 +340,21 @@ function App() {
   };
 
   const handleModelSelected = () => {
-    // Model download started — advance to the hands-on demo (peak-end moment).
-    setOnboardingStep("tryit");
+    // Model download started — advance to the optional AI-cleanup model step.
+    setOnboardingStep("cleanup");
   };
+
+  const handleCleanupDone = () => setOnboardingStep("tryit");
 
   // Step numbering for the progress indicator. macOS has an extra
   // accessibility step; the try-it and features screens share the final slot.
   const isMacOnboarding = detectedPlatform === "macos";
-  const stepTotal = isMacOnboarding ? 5 : 4;
+  const stepTotal = isMacOnboarding ? 6 : 5;
   const modelStepIndex = isMacOnboarding ? 4 : 3;
-  const finalStepIndex = isMacOnboarding ? 5 : 4;
-  const transcribeHotkey = settings?.bindings?.transcribe?.current_binding ?? "";
+  const cleanupStepIndex = isMacOnboarding ? 5 : 4;
+  const finalStepIndex = isMacOnboarding ? 6 : 5;
+  const transcribeHotkey =
+    settings?.bindings?.transcribe?.current_binding ?? "";
 
   // Still checking onboarding status
   if (onboardingStep === null) {
@@ -373,6 +407,16 @@ function App() {
       <Onboarding
         onModelSelected={handleModelSelected}
         stepIndex={modelStepIndex}
+        stepTotal={stepTotal}
+      />
+    );
+  }
+
+  if (onboardingStep === "cleanup") {
+    return (
+      <CleanupModelStep
+        onDone={handleCleanupDone}
+        stepIndex={cleanupStepIndex}
         stepTotal={stepTotal}
       />
     );

@@ -87,7 +87,55 @@ const SEARCH_INDEX: IndexEntry[] = [
   {
     id: "model",
     section: "models",
-    keywords: ["model", "whisper", "parakeet", "accuracy", "download", "speech"],
+    keywords: [
+      "model",
+      "whisper",
+      "parakeet",
+      "accuracy",
+      "download",
+      "speech",
+    ],
+  },
+  {
+    id: "aiCleanup",
+    section: "general",
+    keywords: [
+      "ai cleanup",
+      "cleanup",
+      "filler",
+      "fillers",
+      "punctuation",
+      "llm",
+      "qwen",
+      "local model",
+      "self correction",
+      "sensitivity",
+    ],
+  },
+  {
+    id: "transforms",
+    section: "general",
+    keywords: [
+      "transforms",
+      "transform",
+      "polish",
+      "shorten",
+      "rewrite",
+      "command mode",
+      "prompt",
+    ],
+  },
+  {
+    id: "context",
+    section: "general",
+    keywords: [
+      "context",
+      "window title",
+      "selection",
+      "clipboard",
+      "privacy",
+      "awareness",
+    ],
   },
 ];
 

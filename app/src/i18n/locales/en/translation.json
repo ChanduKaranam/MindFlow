@@ -119,6 +119,11 @@
         "requestFailed": "Failed to request permission. Please try again."
       }
     },
+    "cleanup": {
+      "title": "AI cleanup (optional)",
+      "subtitle": "A small on-device model that removes fillers, fixes punctuation, and spells your names right. Skipping keeps rules-only formatting — you can download it later in Settings.",
+      "skip": "Skip for now"
+    },
     "tryit": {
       "title": "Try it now",
       "prompt": "Hold {{hotkey}} and read this line aloud.",
@@ -310,6 +315,10 @@
       "micSensitivity": {
         "title": "Microphone sensitivity",
         "description": "Higher catches softer speech; lower ignores more background noise."
+      },
+      "quietMode": {
+        "title": "Quiet mode (whispering)",
+        "description": "Boosts microphone gain and lowers the voice threshold so whispered dictation is picked up."
       },
       "noiseSuppression": {
         "title": "Noise suppression",
@@ -527,6 +536,7 @@
       "deleteError": "Failed to delete entry. Please try again.",
       "retranscribe": "Re-transcribe",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
+      "editError": "Failed to save changes. Please try again.",
       "transcribing": "Transcribing...",
       "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon."
     },
@@ -665,9 +675,104 @@
         "dictionary": "Dictionary (custom words)",
         "replacements": "Word replacements",
         "snippets": "Snippets",
-        "model": "Speech model"
+        "model": "Speech model",
+        "aiCleanup": "AI cleanup",
+        "transforms": "Transforms",
+        "context": "Context awareness"
       }
     }
+  },
+  "aiCleanup": {
+    "title": "AI cleanup",
+    "description": "Rewrites each dictation locally with a small on-device model: removes fillers, fixes punctuation, honors self-corrections, and applies your dictionary spellings. No network.",
+    "master": "Enable AI cleanup",
+    "intensity": "Cleanup intensity",
+    "intensityDescription": "One knob over the cleanup behaviors below. Adjusting the individual toggles switches this to Custom.",
+    "intensityOff": "Off",
+    "intensityLight": "Light",
+    "intensityMedium": "Medium",
+    "intensityHigh": "High",
+    "intensityCustom": "Custom",
+    "smart": "Smart cleanup (fillers & punctuation)",
+    "smartDescription": "Strips filler words like \"um\" and \"uh\", and fixes punctuation and spacing.",
+    "selfCorrection": "Self-correction (\"no wait\" backtracks)",
+    "selfCorrectionDescription": "Detects backtracks like \"no wait\" and keeps only the corrected sentence.",
+    "preserveTechnical": "Preserve technical terms",
+    "preserveTechnicalDescription": "Keeps code, jargon, and technical terms from being smoothed over during cleanup.",
+    "model": "Cleanup model",
+    "modelDescription": "Choose which on-device model performs cleanup, or let MindFlow pick automatically for your hardware.",
+    "modelAuto": "Auto (recommended for this PC)",
+    "modelAutoCard": "Auto — best downloaded model",
+    "resolvesTo": "Currently: {{name}}",
+    "recommendedSuffix": " — recommended for this PC",
+    "download": "Download",
+    "downloading": "Downloading… {{percent}}%",
+    "notDownloaded": "Model not downloaded — dictation uses rules-only formatting until it is.",
+    "fallbackModel": "{{selected}} isn't downloaded — cleanup uses {{fallback}} until it is.",
+    "sensitivity": "Name correction sensitivity",
+    "sensitivityDescription": "Controls how aggressively your dictionary spellings are applied to correct names and jargon.",
+    "sensitivityOff": "Off",
+    "sensitivityConservative": "Conservative",
+    "sensitivityAggressive": "Aggressive",
+    "instantPaste": "Instant paste",
+    "instantPasteDescription": "Paste the raw text immediately and swap in the AI-polished version when it's ready. If anything changes in between (you type, switch apps), the raw text is safely kept.",
+    "appTone": "Match app tone",
+    "appToneDescription": "Adapt the writing style to the app you're dictating into — professional in email, casual in chat, verbatim in code editors and terminals."
+  },
+  "scratchpad": {
+    "title": "Scratchpad",
+    "placeholder": "Dictate here — press your shortcut and speak.",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "clear": "Clear"
+  },
+  "history": {
+    "edit": "Edit transcript",
+    "save": "Save",
+    "cancel": "Cancel",
+    "learned": "Added to dictionary: {{words}}",
+    "undoLearn": "Undo",
+    "diff": "Show AI edits",
+    "diffHide": "Hide AI edits",
+    "copyRaw": "Copy raw"
+  },
+  "transforms": {
+    "title": "Transforms",
+    "listTitle": "Named transforms",
+    "description": "Named prompts you can run on selected text via Command Mode. Add your own or edit the presets.",
+    "namePlaceholder": "Name (e.g. Polish)",
+    "promptPlaceholder": "Prompt (e.g. Rewrite this text to be clearer)",
+    "add": "Add",
+    "remove": "Remove {{name}}",
+    "runHint": "Run on selection: hold the Command Mode shortcut and speak a transform's name."
+  },
+  "contextAwareness": {
+    "title": "Context awareness",
+    "description": "Optionally lets AI cleanup see hints about where you're dictating, to resolve names and terms. Everything stays on this device — nothing is sent anywhere.",
+    "windowTitle": "Window title",
+    "windowTitleDescription": "Use the focused window's title as a hint during cleanup.",
+    "selection": "Selected text",
+    "selectionDescription": "Use the text selected when recording starts. Skipped in terminals, where the copy shortcut could interrupt a running process.",
+    "clipboard": "Clipboard",
+    "clipboardDescription": "Use the current clipboard text as a hint during cleanup.",
+    "lastUsed": "Last dictation used:",
+    "source": {
+      "window_title": "Window title",
+      "selection": "Selection",
+      "clipboard": "Clipboard"
+    }
+  },
+  "insights": {
+    "dictations": "Dictations",
+    "words": "Words dictated",
+    "wordsPerDictation": "Words per dictation"
+  },
+  "toasts": {
+    "scratchDeleted": "Last dictation deleted",
+    "scratchNothing": "Nothing to scratch — no recent dictation",
+    "scratchUnsupported": "Scratch that isn't supported here",
+    "scratchFailed": "Couldn't delete the last dictation",
+    "commandFailed": "Command Mode couldn't complete"
   },
   "footer": {
     "downloadingModel": "Downloading {{model}}...",

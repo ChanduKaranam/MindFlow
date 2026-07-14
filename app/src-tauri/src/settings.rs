@@ -88,6 +88,13 @@ pub struct ShortcutBinding {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct Transform {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct LLMPrompt {
     pub id: String,
     pub name: String,
@@ -458,6 +465,45 @@ pub struct AppSettings {
     pub noise_suppression: bool,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default = "default_true")]
+    pub ai_cleanup_enabled: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_smart: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_self_correction: bool,
+    #[serde(default = "default_true")]
+    pub cleanup_preserve_technical: bool,
+    #[serde(default)]
+    pub cleanup_model_id: Option<String>,
+    /// M8: paste the rules-only text immediately, replace in place when the
+    /// LLM polish lands (aborts safely, leaving the raw text, on any doubt).
+    #[serde(default = "default_true")]
+    pub instant_paste: bool,
+    /// M8: adapt cleanup tone to the focused app's category (email/chat/code…).
+    #[serde(default = "default_true")]
+    pub app_tone_enabled: bool,
+    /// M9: cleanup intensity preset — "off" / "light" / "medium" / "high" /
+    /// "custom". Plain String (not an enum) for bindings simplicity.
+    #[serde(default = "default_cleanup_intensity")]
+    pub cleanup_intensity: String,
+    /// M9: named Command Mode transforms (presets + user-defined).
+    #[serde(default = "default_transforms")]
+    pub transforms: Vec<Transform>,
+    /// M9 privacy-safe context: independent, default-OFF sources injected into
+    /// the cleanup prompt (never transcribed, never leaves the machine).
+    #[serde(default)]
+    pub context_window_title: bool,
+    #[serde(default)]
+    pub context_selection: bool,
+    #[serde(default)]
+    pub context_clipboard: bool,
+    /// M9 whisper-quiet preset: lower VAD threshold + input gain boost.
+    #[serde(default)]
+    pub quiet_mode: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_model() -> String {
@@ -674,6 +720,40 @@ fn default_post_process_prompts() -> Vec<LLMPrompt> {
     }]
 }
 
+fn default_cleanup_intensity() -> String {
+    "medium".to_string()
+}
+
+fn default_transforms() -> Vec<Transform> {
+    let t = |id: &str, name: &str, prompt: &str| Transform {
+        id: id.to_string(),
+        name: name.to_string(),
+        prompt: prompt.to_string(),
+    };
+    vec![
+        t(
+            "polish",
+            "Polish",
+            "Polish this text: fix grammar and improve flow without changing meaning.",
+        ),
+        t(
+            "shorten",
+            "Shorten",
+            "Make this text significantly shorter while keeping all key information.",
+        ),
+        t(
+            "bullets",
+            "Bullet points",
+            "Convert this text into concise bullet points.",
+        ),
+        t(
+            "grammar",
+            "Fix grammar",
+            "Fix spelling and grammar mistakes only; change nothing else.",
+        ),
+    ]
+}
+
 fn default_whisper_gpu_device() -> i32 {
     -1 // auto
 }
@@ -796,6 +876,18 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_post_process_shortcut.to_string(),
         },
     );
+    let default_command_mode_shortcut = "ctrl+alt+space";
+    bindings.insert(
+        "command_mode".to_string(),
+        ShortcutBinding {
+            id: "command_mode".to_string(),
+            name: "Command Mode".to_string(),
+            description: "Speak an instruction to transform the selected text with local AI."
+                .to_string(),
+            default_binding: default_command_mode_shortcut.to_string(),
+            current_binding: default_command_mode_shortcut.to_string(),
+        },
+    );
     bindings.insert(
         "cancel".to_string(),
         ShortcutBinding {
@@ -874,6 +966,19 @@ pub fn get_default_settings() -> AppSettings {
         vad_threshold: default_vad_threshold(),
         noise_suppression: default_noise_suppression(),
         onboarding_completed: false,
+        ai_cleanup_enabled: true,
+        cleanup_smart: true,
+        cleanup_self_correction: true,
+        cleanup_preserve_technical: true,
+        cleanup_model_id: None,
+        instant_paste: true,
+        app_tone_enabled: true,
+        cleanup_intensity: default_cleanup_intensity(),
+        transforms: default_transforms(),
+        context_window_title: false,
+        context_selection: false,
+        context_clipboard: false,
+        quiet_mode: false,
     }
 }
 
@@ -1042,6 +1147,34 @@ mod tests {
         assert!(!settings.number_conversion_enabled);
     }
 
+    #[test]
+    fn ai_cleanup_defaults_on() {
+        let s = get_default_settings();
+        assert!(
+            s.ai_cleanup_enabled
+                && s.cleanup_smart
+                && s.cleanup_self_correction
+                && s.cleanup_preserve_technical
+        );
+        assert!(s.cleanup_model_id.is_none());
+    }
+
+    #[test]
+    fn m9_defaults() {
+        let s = get_default_settings();
+        assert_eq!(s.cleanup_intensity, "medium");
+        assert_eq!(
+            s.transforms
+                .iter()
+                .map(|t| t.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["polish", "shorten", "bullets", "grammar"]
+        );
+        // Privacy-safe context and quiet mode are strictly opt-in.
+        assert!(!s.context_window_title && !s.context_selection && !s.context_clipboard);
+        assert!(!s.quiet_mode);
+    }
+
     // `reset_settings_to_defaults` writes `get_default_settings()` and returns
     // it, trusting the defaults to be deterministic. AppSettings does not derive
     // PartialEq (its nested types would all have to), so we compare the JSON
@@ -1089,7 +1222,10 @@ mod m2_cpu_defaults {
     use super::*;
     #[test]
     fn accelerator_defaults_are_cpu() {
-        assert_eq!(WhisperAcceleratorSetting::default(), WhisperAcceleratorSetting::Cpu);
+        assert_eq!(
+            WhisperAcceleratorSetting::default(),
+            WhisperAcceleratorSetting::Cpu
+        );
         assert_eq!(OrtAcceleratorSetting::default(), OrtAcceleratorSetting::Cpu);
     }
     #[test]

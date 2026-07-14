@@ -17,6 +17,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+          # Bumped to drop caches whose cmake config predates the OpenSSL hint.
+          prefix-key: v1-openssl
       # CPU-only build: whisper.cpp (CPU) via whisper-rs needs cmake + libclang (bindgen);
       # the rest are Tauri/enigo/gtk-layer-shell/alsa runtime+build deps. No Vulkan/GPU SDK.
       - name: Linux system deps
@@ -31,4 +36,35 @@ jobs:
             libgtk-layer-shell0 libgtk-layer-shell-dev \
             libxdo-dev patchelf
       - run: bun install
-      - run: cd src-tauri && cargo check
+      - if: matrix.os != 'macos-latest'
+        run: cd src-tauri && cargo check
+      # macOS runs a full bundle build: the whisper/llama duplicate-ggml fix
+      # (dynamic-link llama dylibs, see src-tauri/build.rs) only shows at link
+      # time, and the llama/ggml dylibs must land in Contents/Frameworks
+      # (tauri.conf.json bundle.macOS.frameworks) for the .app to launch.
+      - name: macOS bundle build
+        if: matrix.os == 'macos-latest'
+        env:
+          # llama.cpp's vendored cpp-httplib needs OpenSSL headers; the runner
+          # image stopped exposing them in default include paths (2026-07).
+          OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
+        run: |
+          mkdir -p src-tauri/resources/models
+          curl -L -o src-tauri/resources/models/silero_vad_v6.onnx \
+            https://github.com/snakers4/silero-vad/raw/v6.0/src/silero_vad/data/silero_vad.onnx
+          curl -L -o src-tauri/resources/models/gtcrn_simple.onnx \
+            https://github.com/Xiaobin-Rong/gtcrn/raw/main/stream/onnx_models/gtcrn_simple.onnx
+          # Two-phase: bundle.macOS.frameworks references target/release dylibs,
+          # but tauri-build copies them during handy's *build script*, which cargo
+          # runs concurrently with dependency builds — so produce the llama/ggml
+          # dylibs first (llama-cpp-sys-2's build script hardlinks them there).
+          (cd src-tauri && cargo build --release -p llama-cpp-2)
+          bun run tauri build --bundles app
+          APP=src-tauri/target/release/bundle/macos/MindFlow.app
+          echo "--- Frameworks:"
+          ls -la "$APP/Contents/Frameworks"
+          echo "--- linked dylibs:"
+          otool -L "$APP/Contents/MacOS/"*

@@ -126,6 +126,7 @@ const Onboarding: React.FC<OnboardingProps> = ({
         <div className="flex flex-col gap-4 overflow-y-auto min-h-0 text-center">
           {models
             .filter((m: ModelInfo) => !m.is_downloaded)
+            .filter((m: ModelInfo) => m.engine_type !== "TextLlm")
             .filter((model: ModelInfo) => model.is_recommended)
             .map((model: ModelInfo) => {
               const isRecommendedForCpu =
@@ -154,6 +155,7 @@ const Onboarding: React.FC<OnboardingProps> = ({
 
           {models
             .filter((m: ModelInfo) => !m.is_downloaded)
+            .filter((m: ModelInfo) => m.engine_type !== "TextLlm")
             .filter((model: ModelInfo) => !model.is_recommended)
             .sort(
               (a: ModelInfo, b: ModelInfo) =>

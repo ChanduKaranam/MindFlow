@@ -1,4 +1,4 @@
-use crate::managers::model::{ModelInfo, ModelManager};
+use crate::managers::model::{has_downloaded_stt_model, ModelInfo, ModelManager};
 use crate::managers::transcription::{ModelStateEvent, TranscriptionManager};
 use crate::settings::{get_settings, write_settings, ModelUnloadTimeout};
 use std::sync::Arc;
@@ -195,8 +195,11 @@ pub async fn is_model_loading(
 pub async fn has_any_models_available(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
-    let models = model_manager.get_available_models();
-    Ok(models.iter().any(|m| m.is_downloaded))
+    // TextLlm (cleanup) models are not STT engines — a TextLlm-only install
+    // must not count as "has models" for onboarding/returning-user checks.
+    Ok(has_downloaded_stt_model(
+        &model_manager.get_available_models(),
+    ))
 }
 
 #[tauri::command]
@@ -204,9 +207,11 @@ pub async fn has_any_models_available(
 pub async fn has_any_models_or_downloads(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
-    let models = model_manager.get_available_models();
-    // Return true if any models are downloaded OR if any downloads are in progress
-    Ok(models.iter().any(|m| m.is_downloaded))
+    // Return true if any (non-TextLlm) models are downloaded OR if any
+    // downloads are in progress
+    Ok(has_downloaded_stt_model(
+        &model_manager.get_available_models(),
+    ))
 }
 
 #[tauri::command]

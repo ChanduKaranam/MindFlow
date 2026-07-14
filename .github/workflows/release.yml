@@ -63,10 +63,28 @@ jobs:
       - name: Install frontend deps
         run: bun install
 
+      # bundle.macOS.frameworks references llama/ggml dylibs in target/release,
+      # but tauri-build copies them during handy's build script, which races the
+      # dependency builds on a clean checkout — produce the dylibs first.
+      - name: Pre-build llama dylibs (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          # llama.cpp's vendored cpp-httplib needs OpenSSL headers; the runner
+          # image stopped exposing them in default include paths (2026-07).
+          OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
+        run: cd src-tauri && cargo build --release -p llama-cpp-2
+
       - name: Build + publish installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+          # CMAKE_POLICY_VERSION_MINIMUM=3.5 downgrades CMP0074, which makes
+          # CMake ignore *_ROOT_DIR env vars — CMAKE_PREFIX_PATH always works.
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/openssl@3
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
