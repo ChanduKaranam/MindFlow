@@ -79,6 +79,9 @@ transcribe-rs = { version = "0.3.8", features = ["whisper-cpp", "onnx"] }
 # Bump only together with transcribe-rs, re-running the llm_engine_smoke test.
 llama-cpp-2 = "=0.1.139"
 encoding_rs = "0.8" # persistent UTF-8 decoder for llama token_to_piece
+# M8: focused-app detection for per-app tone + replace-in-place guards.
+# Native Wayland backends with X11 fallback; degrades to None gracefully.
+active-win-pos-rs = "0.11"
 handy-keys = "0.2.4"
 ferrous-opencc = "0.2.3"
 clap = { version = "4", features = ["derive"] }

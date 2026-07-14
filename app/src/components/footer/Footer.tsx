@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { useTranslation } from "react-i18next";
 
 import ModelSelector from "../model-selector";
 import UpdateChecker from "../update-checker";
+import { commands } from "@/bindings";
 
 const Footer: React.FC = () => {
+  const { t } = useTranslation();
   const [version, setVersion] = useState("");
 
   useEffect(() => {
@@ -26,6 +29,13 @@ const Footer: React.FC = () => {
       <div className="flex justify-between items-center text-xs px-4 pb-3 text-text/60">
         <div className="flex items-center gap-4">
           <ModelSelector />
+          <button
+            type="button"
+            onClick={() => commands.openScratchpad()}
+            className="hover:text-text transition-colors"
+          >
+            {t("scratchpad.title")}
+          </button>
         </div>
 
         {/* Update Status */}

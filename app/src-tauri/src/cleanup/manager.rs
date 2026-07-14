@@ -5,6 +5,7 @@ use crate::managers::model::{EngineType, ModelManager};
 use crate::settings::AppSettings;
 use anyhow::{anyhow, Result};
 use log::{error, warn};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -49,6 +50,15 @@ pub struct CleanupManager {
     model_manager: Arc<ModelManager>,
     /// (model_id, engine) — reloaded when the configured model changes.
     engine: Arc<Mutex<Option<(String, LlmEngine)>>>,
+    /// Unix millis of the last engine use (load or generate) for idle unload.
+    last_used_ms: Arc<AtomicU64>,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 impl CleanupManager {
@@ -56,6 +66,112 @@ impl CleanupManager {
         Self {
             model_manager,
             engine: Arc::new(Mutex::new(None)),
+            last_used_ms: Arc::new(AtomicU64::new(now_ms())),
+        }
+    }
+
+    /// Warm the engine in the background so the first dictation never pays the
+    /// GGUF load. Non-blocking; a failed load stays a silent fallback.
+    pub fn preload(&self, settings: &AppSettings) {
+        if !settings.ai_cleanup_enabled
+            || settings.model_unload_timeout == crate::settings::ModelUnloadTimeout::Immediately
+        {
+            return;
+        }
+        let Some(model_id) = self.resolve_model_id(settings) else {
+            return;
+        };
+        let Ok(path) = self.model_manager.get_model_path(&model_id) else {
+            return;
+        };
+        let slot = Arc::clone(&self.engine);
+        let last_used = Arc::clone(&self.last_used_ms);
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+            if matches!(&*guard, Some((id, _)) if *id == model_id) {
+                return;
+            }
+            match LlmEngine::load(&path) {
+                Ok(engine) => {
+                    *guard = Some((model_id, engine));
+                    last_used.store(now_ms(), Ordering::Relaxed);
+                    log::info!("AI cleanup engine preloaded");
+                }
+                Err(e) => warn!("AI cleanup preload failed (will retry on use): {e}"),
+            }
+        });
+    }
+
+    /// M8 Command Mode: apply a spoken instruction to (optional) selected text.
+    /// `None` = model unavailable / generation failed — the caller must NOT
+    /// paste anything (unlike cleanup there is no raw text worth keeping).
+    pub async fn run_command(
+        &self,
+        instruction: &str,
+        selection: Option<String>,
+        settings: &AppSettings,
+    ) -> Option<String> {
+        if instruction.trim().is_empty() {
+            return None;
+        }
+        let model_id = self.resolve_model_id(settings)?;
+        let path = self.model_manager.get_model_path(&model_id).ok()?;
+        let prompt = crate::cleanup::build_command_prompt(instruction.trim(), selection.as_deref());
+        let sel_words = selection.map(|s| s.split_whitespace().count()).unwrap_or(0);
+        let max_tokens = (sel_words * 3 + 256).clamp(256, 2048);
+
+        let engine_slot = Arc::clone(&self.engine);
+        let timeout_budget = {
+            let guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
+            if matches!(&*guard, Some((id, _)) if *id == model_id) {
+                GENERATION_TIMEOUT
+            } else {
+                GENERATION_TIMEOUT + LOAD_ALLOWANCE
+            }
+        };
+        let task = tauri::async_runtime::spawn_blocking(move || -> Result<String> {
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut guard = engine_slot.lock().unwrap_or_else(|e| e.into_inner());
+                let needs_load = !matches!(&*guard, Some((id, _)) if *id == model_id);
+                if needs_load {
+                    *guard = Some((model_id.clone(), LlmEngine::load(&path)?));
+                }
+                let (_, engine) = guard.as_ref().expect("just loaded");
+                engine.generate(&prompt, max_tokens)
+            }));
+            match outcome {
+                Ok(r) => r,
+                Err(_) => {
+                    *engine_slot.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                    Err(anyhow!("command engine panicked"))
+                }
+            }
+        });
+        let raw = match tokio::time::timeout(timeout_budget, task).await {
+            Ok(Ok(Ok(text))) => text,
+            other => {
+                warn!("Command mode generation failed/timed out: {other:?}");
+                return None;
+            }
+        };
+        self.last_used_ms.store(now_ms(), Ordering::Relaxed);
+        let out = strip_think(&raw);
+        crate::cleanup::is_sane_command_output(&out).then_some(out)
+    }
+
+    /// Drop the engine if it has been idle longer than `limit_secs`.
+    /// Skips silently when a generation is in flight (mutex held).
+    pub fn unload_if_idle(&self, limit_secs: u64) {
+        let Ok(mut guard) = self.engine.try_lock() else {
+            return;
+        };
+        if guard.is_none() {
+            return;
+        }
+        let idle_ms = now_ms().saturating_sub(self.last_used_ms.load(Ordering::Relaxed));
+        if idle_ms > limit_secs.max(1) * 1000 {
+            *guard = None;
+            log::info!("AI cleanup engine unloaded after {}s idle", idle_ms / 1000);
         }
     }
 
@@ -101,7 +217,13 @@ impl CleanupManager {
                 return None;
             }
         };
-        let system = build_system_prompt(&flags, &settings.custom_words);
+        // M8 per-app tone: detect the focused app's category once per dictation.
+        let tone = if settings.app_tone_enabled {
+            crate::context::tone_rule(crate::context::detect_active_app_category())
+        } else {
+            ""
+        };
+        let system = build_system_prompt(&flags, &settings.custom_words, tone);
 
         // Small models drop content on long inputs: clean sentence-packed
         // chunks independently, preserving dictated paragraph breaks, so a
@@ -180,6 +302,11 @@ impl CleanupManager {
                 return None;
             }
         };
+
+        self.last_used_ms.store(now_ms(), Ordering::Relaxed);
+        if settings.model_unload_timeout == crate::settings::ModelUnloadTimeout::Immediately {
+            *self.engine.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
 
         let rejected = outs.iter().filter(|o| o.is_none()).count();
         if rejected == outs.len() {

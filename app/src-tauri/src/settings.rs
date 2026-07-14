@@ -468,6 +468,13 @@ pub struct AppSettings {
     pub cleanup_preserve_technical: bool,
     #[serde(default)]
     pub cleanup_model_id: Option<String>,
+    /// M8: paste the rules-only text immediately, replace in place when the
+    /// LLM polish lands (aborts safely, leaving the raw text, on any doubt).
+    #[serde(default = "default_true")]
+    pub instant_paste: bool,
+    /// M8: adapt cleanup tone to the focused app's category (email/chat/code…).
+    #[serde(default = "default_true")]
+    pub app_tone_enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -810,6 +817,18 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_post_process_shortcut.to_string(),
         },
     );
+    let default_command_mode_shortcut = "ctrl+alt+space";
+    bindings.insert(
+        "command_mode".to_string(),
+        ShortcutBinding {
+            id: "command_mode".to_string(),
+            name: "Command Mode".to_string(),
+            description: "Speak an instruction to transform the selected text with local AI."
+                .to_string(),
+            default_binding: default_command_mode_shortcut.to_string(),
+            current_binding: default_command_mode_shortcut.to_string(),
+        },
+    );
     bindings.insert(
         "cancel".to_string(),
         ShortcutBinding {
@@ -893,6 +912,8 @@ pub fn get_default_settings() -> AppSettings {
         cleanup_self_correction: true,
         cleanup_preserve_technical: true,
         cleanup_model_id: None,
+        instant_paste: true,
+        app_tone_enabled: true,
     }
 }
 

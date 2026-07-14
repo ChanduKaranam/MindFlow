@@ -1279,7 +1279,12 @@ pub fn set_onboarding_completed(app: AppHandle, completed: bool) -> Result<(), S
 pub fn change_ai_cleanup_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.ai_cleanup_enabled = enabled;
-    settings::write_settings(&app, settings);
+    settings::write_settings(&app, settings.clone());
+    if enabled {
+        if let Some(cm) = app.try_state::<std::sync::Arc<crate::cleanup::CleanupManager>>() {
+            cm.preload(&settings);
+        }
+    }
     Ok(())
 }
 
@@ -1315,12 +1320,34 @@ pub fn change_cleanup_preserve_technical_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_instant_paste_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.instant_paste = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_app_tone_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.app_tone_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_cleanup_model_setting(
     app: AppHandle,
     model_id: Option<String>,
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.cleanup_model_id = model_id;
-    settings::write_settings(&app, settings);
+    settings::write_settings(&app, settings.clone());
+    // Warm the newly-selected model so the next dictation doesn't pay the load.
+    if let Some(cm) = app.try_state::<std::sync::Arc<crate::cleanup::CleanupManager>>() {
+        cm.preload(&settings);
+    }
     Ok(())
 }

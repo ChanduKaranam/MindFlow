@@ -179,6 +179,10 @@ const settingUpdaters: {
     commands.changeCleanupPreserveTechnicalSetting(value as boolean),
   cleanup_model_id: (value) =>
     commands.changeCleanupModelSetting(value as string | null),
+  instant_paste: (value) =>
+    commands.changeInstantPasteSetting(value as boolean),
+  app_tone_enabled: (value) =>
+    commands.changeAppToneSetting(value as boolean),
 };
 
 export const useSettingsStore = create<SettingsStore>()(

@@ -698,7 +698,18 @@
     "sensitivityDescription": "Controls how aggressively your dictionary spellings are applied to correct names and jargon.",
     "sensitivityOff": "Off",
     "sensitivityConservative": "Conservative",
-    "sensitivityAggressive": "Aggressive"
+    "sensitivityAggressive": "Aggressive",
+    "instantPaste": "Instant paste",
+    "instantPasteDescription": "Paste the raw text immediately and swap in the AI-polished version when it's ready. If anything changes in between (you type, switch apps), the raw text is safely kept.",
+    "appTone": "Match app tone",
+    "appToneDescription": "Adapt the writing style to the app you're dictating into — professional in email, casual in chat, verbatim in code editors and terminals."
+  },
+  "scratchpad": {
+    "title": "Scratchpad",
+    "placeholder": "Dictate here — press your shortcut and speak.",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "clear": "Clear"
   },
   "history": {
     "edit": "Edit transcript",

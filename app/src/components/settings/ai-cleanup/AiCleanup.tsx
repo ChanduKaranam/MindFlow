@@ -109,6 +109,24 @@ export const AiCleanup: React.FC = React.memo(() => {
             descriptionMode="tooltip"
             grouped
           />
+          <ToggleSwitch
+            checked={getSetting("instant_paste") ?? true}
+            onChange={(v) => updateSetting("instant_paste", v)}
+            isUpdating={isUpdating("instant_paste")}
+            label={t("aiCleanup.instantPaste")}
+            description={t("aiCleanup.instantPasteDescription")}
+            descriptionMode="tooltip"
+            grouped
+          />
+          <ToggleSwitch
+            checked={getSetting("app_tone_enabled") ?? true}
+            onChange={(v) => updateSetting("app_tone_enabled", v)}
+            isUpdating={isUpdating("app_tone_enabled")}
+            label={t("aiCleanup.appTone")}
+            description={t("aiCleanup.appToneDescription")}
+            descriptionMode="tooltip"
+            grouped
+          />
 
           <SettingContainer
             title={t("aiCleanup.model")}

@@ -588,6 +588,190 @@ fn should_send_auto_submit(auto_submit: bool, paste_method: PasteMethod) -> bool
     auto_submit && paste_method != PasteMethod::None
 }
 
+/// Longest raw text we attempt to replace in place; beyond this the visible
+/// select-back churn outweighs the polish.
+const REPLACE_MAX_CHARS: usize = 800;
+
+/// M8 instant paste: replace the just-pasted `old_text` with `new_text`.
+///
+/// Self-verifying select-back: select `old_text` char count with Shift+Left,
+/// copy, and only paste the replacement if the clipboard equals `old_text` —
+/// anything else (the user typed, moved the caret, or switched fields)
+/// deselects and leaves the raw text untouched. Returns Ok(true) when the
+/// replacement was applied.
+///
+/// Wayland is skipped: enigo key simulation there is unreliable and a blind
+/// mis-fire into the compositor is worse than keeping the raw text.
+pub fn replace_last_paste(
+    old_text: &str,
+    new_text: String,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    #[cfg(target_os = "linux")]
+    if is_wayland() {
+        return Ok(false);
+    }
+    let settings = get_settings(&app_handle);
+    if settings.paste_method == PasteMethod::None
+        || settings.paste_method == PasteMethod::ExternalScript
+    {
+        return Ok(false);
+    }
+    // The paste path may have appended a trailing space — the selection must
+    // cover exactly what landed in the target app.
+    let old_typed = if settings.append_trailing_space {
+        format!("{} ", old_text)
+    } else {
+        old_text.to_string()
+    };
+    let n = old_typed.chars().count();
+    if n == 0 || n > REPLACE_MAX_CHARS {
+        return Ok(false);
+    }
+
+    let enigo_state = app_handle
+        .try_state::<EnigoState>()
+        .ok_or("Enigo state not initialized")?;
+    let mut enigo = enigo_state
+        .0
+        .lock()
+        .map_err(|e| format!("Failed to lock Enigo: {}", e))?;
+
+    // Select the pasted text: Shift held, N x Left.
+    enigo
+        .key(Key::Shift, Direction::Press)
+        .map_err(|e| format!("shift press: {e}"))?;
+    let mut select_err = None;
+    for _ in 0..n {
+        if let Err(e) = enigo.key(Key::LeftArrow, Direction::Click) {
+            select_err = Some(format!("left arrow: {e}"));
+            break;
+        }
+    }
+    enigo
+        .key(Key::Shift, Direction::Release)
+        .map_err(|e| format!("shift release: {e}"))?;
+    if let Some(e) = select_err {
+        return Err(e);
+    }
+
+    // Copy the selection and verify it is exactly what we pasted.
+    let clipboard = app_handle.clipboard();
+    let saved_clipboard = clipboard.read_text().unwrap_or_default();
+    const SENTINEL: &str = "\u{1}mindflow-verify\u{1}";
+    let _ = clipboard.write_text(SENTINEL);
+    std::thread::sleep(Duration::from_millis(30));
+    let copy_result = {
+        #[cfg(target_os = "macos")]
+        {
+            enigo
+                .key(Key::Meta, Direction::Press)
+                .and_then(|_| enigo.key(Key::Unicode('c'), Direction::Click))
+                .and_then(|_| enigo.key(Key::Meta, Direction::Release))
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            enigo
+                .key(Key::Control, Direction::Press)
+                .and_then(|_| enigo.key(Key::Unicode('c'), Direction::Click))
+                .and_then(|_| enigo.key(Key::Control, Direction::Release))
+        }
+    };
+    if let Err(e) = copy_result {
+        let _ = enigo.key(Key::RightArrow, Direction::Click);
+        let _ = clipboard.write_text(saved_clipboard);
+        return Err(format!("copy combo: {e}"));
+    }
+
+    // Poll for the clipboard to change (espanso pattern) instead of one blind sleep.
+    let mut selected = String::new();
+    for _ in 0..10 {
+        std::thread::sleep(Duration::from_millis(30));
+        let now = clipboard.read_text().unwrap_or_default();
+        if now != SENTINEL {
+            selected = now;
+            break;
+        }
+    }
+
+    if selected != old_typed {
+        // Not our text — deselect (caret back to the right end) and bail.
+        let _ = enigo.key(Key::RightArrow, Direction::Click);
+        let _ = clipboard.write_text(saved_clipboard);
+        info!("replace_last_paste: verification failed, leaving raw text");
+        return Ok(false);
+    }
+
+    // Selection verified: pasting replaces it natively.
+    let new_typed = if settings.append_trailing_space {
+        format!("{} ", new_text)
+    } else {
+        new_text
+    };
+    let result = paste_via_clipboard(
+        &mut enigo,
+        &new_typed,
+        &app_handle,
+        &settings.paste_method,
+        settings.paste_delay_ms,
+    );
+    // paste_via_clipboard saved/restored the sentinel; put the user's own
+    // clipboard content back.
+    if settings.clipboard_handling == ClipboardHandling::DontModify {
+        let _ = clipboard.write_text(saved_clipboard);
+    }
+    result.map(|_| true)
+}
+
+/// M8 Command Mode: read the current selection in the focused app via a
+/// simulated copy, preserving the user's clipboard. `None` = no selection
+/// (clipboard unchanged within the poll window) or clipboard unavailable.
+pub fn capture_selection(app_handle: &AppHandle) -> Option<String> {
+    let enigo_state = app_handle.try_state::<EnigoState>()?;
+    let mut enigo = enigo_state.0.lock().ok()?;
+    let clipboard = app_handle.clipboard();
+    let saved_clipboard = clipboard.read_text().unwrap_or_default();
+    const SENTINEL: &str = "\u{1}mindflow-selection\u{1}";
+    clipboard.write_text(SENTINEL).ok()?;
+    std::thread::sleep(Duration::from_millis(30));
+
+    let copy_result = {
+        #[cfg(target_os = "macos")]
+        {
+            enigo
+                .key(Key::Meta, Direction::Press)
+                .and_then(|_| enigo.key(Key::Unicode('c'), Direction::Click))
+                .and_then(|_| enigo.key(Key::Meta, Direction::Release))
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            enigo
+                .key(Key::Control, Direction::Press)
+                .and_then(|_| enigo.key(Key::Unicode('c'), Direction::Click))
+                .and_then(|_| enigo.key(Key::Control, Direction::Release))
+        }
+    };
+    if copy_result.is_err() {
+        let _ = clipboard.write_text(saved_clipboard);
+        return None;
+    }
+
+    // Poll for the clipboard to change (espanso pattern).
+    let mut selection = None;
+    for _ in 0..10 {
+        std::thread::sleep(Duration::from_millis(30));
+        let now = clipboard.read_text().unwrap_or_default();
+        if now != SENTINEL {
+            if !now.trim().is_empty() {
+                selection = Some(now);
+            }
+            break;
+        }
+    }
+    let _ = clipboard.write_text(saved_clipboard);
+    selection
+}
+
 pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;

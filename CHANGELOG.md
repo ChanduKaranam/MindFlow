@@ -2,6 +2,33 @@
 
 All notable changes to MindFlow are documented here.
 
+## Unreleased — M8 Wispr-parity interaction layer
+
+### Feel
+- **Instant paste** (default on) — the deterministic text hits the cursor
+  immediately; when the AI polish lands it replaces the pasted text in place.
+  Replacement is self-verifying (select-back + compare): if you typed, moved
+  the caret, or switched apps in between, the raw text is safely kept. Skipped
+  on Wayland (left as raw + polish in History).
+- **Warm engine** — the cleanup LLM preloads in the background at startup and
+  on model change, so the first dictation no longer pays the model-load cost;
+  it unloads again on the same idle policy as the STT model.
+
+### Intelligence
+- **Per-app tone** (default on) — dictation adapts to the focused app:
+  professional in email clients, casual in chat apps, verbatim-technical in
+  code editors and terminals, concise in note apps. Detection degrades
+  gracefully (e.g. Wayland) to the neutral default.
+- **Command Mode** — new shortcut (default `ctrl+alt+space`): select text
+  anywhere, hold the shortcut, and speak an instruction ("make this shorter",
+  "turn this into bullet points"); the local LLM transforms the selection and
+  pastes the result over it. With nothing selected, the instruction's output
+  is typed at the cursor. Never types anything on failure.
+
+### Scratchpad
+- **Scratchpad window** — a small always-on-top notepad (Footer → Scratchpad)
+  to dictate into without a target app; copy the result with one click.
+
 ## Unreleased — M7 accuracy stack
 
 ### Accuracy

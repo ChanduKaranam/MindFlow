@@ -4,7 +4,8 @@ pub mod prompt;
 pub use engine::LlmEngine;
 pub use manager::CleanupManager;
 pub use prompt::{
-    build_chat_prompt, build_system_prompt, is_sane_output, strip_think, CleanupFlags,
+    build_chat_prompt, build_command_prompt, build_system_prompt, is_sane_command_output,
+    is_sane_output, strip_think, CleanupFlags,
 };
 
 use crate::managers::model::ModelTier;

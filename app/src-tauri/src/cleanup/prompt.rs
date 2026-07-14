@@ -63,7 +63,11 @@ const FEW_SHOTS: &[(&str, &str)] = &[
     ),
 ];
 
-pub fn build_system_prompt(flags: &CleanupFlags, custom_words: &[String]) -> String {
+pub fn build_system_prompt(
+    flags: &CleanupFlags,
+    custom_words: &[String],
+    tone_rule: &str,
+) -> String {
     let mut p = String::from(
         "You are a text filter, not an assistant. The user's message is a raw \
          speech-to-text transcript that you rewrite into a clean version of the SAME \
@@ -101,6 +105,8 @@ pub fn build_system_prompt(flags: &CleanupFlags, custom_words: &[String]) -> Str
              Times use colons: \"10.30 a.m.\" → \"10:30 AM\".\n",
         );
     }
+    // M8 per-app tone (empty for the default category).
+    p.push_str(tone_rule);
     if !custom_words.is_empty() {
         p.push_str(&format!(
             "- Spelling authority — when the transcript clearly refers to one of these \
@@ -111,6 +117,31 @@ pub fn build_system_prompt(flags: &CleanupFlags, custom_words: &[String]) -> Str
     }
     p.push_str("Output only the rewritten transcript — no explanations, no quotes, no preamble.");
     p
+}
+
+/// M8 Command Mode: apply a spoken instruction to (optionally) selected text.
+/// Same ChatML + think-prefill scaffolding as the cleanup prompt.
+pub fn build_command_prompt(instruction: &str, selection: Option<&str>) -> String {
+    let system = "You are a precise text-editing engine. The user gives a spoken \
+                  instruction and, optionally, a text to transform. Apply the \
+                  instruction to the text (or produce the requested text when none is \
+                  given). Preserve the text's language and facts unless the instruction \
+                  says otherwise. Output ONLY the resulting text — no explanations, no \
+                  quotes, no preamble, no chat.";
+    let user = match selection {
+        Some(sel) => format!("Instruction: {instruction}\n\nText:\n{sel}"),
+        None => format!("Instruction: {instruction}"),
+    };
+    format!(
+        "<|im_start|>system\n{system} /no_think<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+    )
+}
+
+/// Lighter sanity check for Command Mode output: the result may legitimately
+/// be any length relative to the input, but must not be empty or leak a
+/// think block.
+pub fn is_sane_command_output(out: &str) -> bool {
+    !out.is_empty() && !out.contains("<think>") && !out.contains("</think>")
 }
 
 /// Split a transcript into sentence-packed chunks of at most `max_words`
@@ -305,7 +336,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_dictionary_and_guard() {
-        let p = build_system_prompt(&all_flags(), &["Purna".into(), "Tilicho".into()]);
+        let p = build_system_prompt(&all_flags(), &["Purna".into(), "Tilicho".into()], "");
         assert!(p.contains("Purna, Tilicho"));
         assert!(p.contains("not an assistant"));
     }
@@ -319,6 +350,7 @@ mod tests {
                 preserve_technical: false,
             },
             &[],
+            "",
         );
         assert!(p.contains("filler"));
         assert!(!p.contains("retracts"));
